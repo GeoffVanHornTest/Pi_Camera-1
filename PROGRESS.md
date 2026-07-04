@@ -29,33 +29,60 @@ with the snapshot attached to a Gmail address.
 ## Project Structure
 
 ```
-pi_camera/
-├── main.py              # Entry point — wires all modules together (not started)
-├── config.py            # All settings and constants (COMPLETE)
-├── camera.py            # Camera setup, frame capture, video recording (COMPLETE)
-├── motion_detector.py   # Motion detection logic (COMPLETE)
-├── notifier.py          # Sends Gmail alert with snapshot attached (COMPLETE)
-├── storage.py           # Timestamped filenames, clip/disk management (COMPLETE)
-├── .env                 # Secrets — fill in before running
-├── .gitignore           # Excludes .env and clips/ from version control
-├── requirements.txt     # Third-party dependencies
-└── clips/               # Where recorded video and snapshots are saved
+PI_Camera/
+├── 02-scripts/
+│   ├── main.py              # Entry point — wires all modules together (COMPLETE)
+│   ├── config.py            # All settings and constants (COMPLETE)
+│   ├── camera.py            # Camera setup, frame capture, video recording (COMPLETE)
+│   ├── motion_detector.py   # Motion detection logic (COMPLETE)
+│   ├── notifier.py          # Sends Gmail alert with snapshot attached (COMPLETE)
+│   └── storage.py           # Timestamped filenames, clip/disk management (COMPLETE)
+├── 01-reqs/
+│   └── requirements.txt     # Third-party dependencies (pip fallback reference)
+├── 00-clips/                # Where recorded video and snapshots are saved
+├── pyproject.toml           # Project metadata and dependencies (uv-managed)
+├── uv.lock                  # Locked dependency versions
+├── .env                     # Secrets — fill in before running (never commit)
+└── .gitignore               # Excludes .env and clips/ from version control
 ```
 
 ---
 
 ## Dependencies
 
+The project uses `pyproject.toml` as the source of truth, managed with `uv`.
+
+**Runtime** (installed via uv or pip):
 ```
-# requirements.txt
-picamera2
 opencv-python-headless
 python-dotenv
 ```
 
-Install on the Pi:
+**picamera2** — installed via apt, not pip:
 ```bash
-pip install picamera2 opencv-python-headless python-dotenv
+sudo apt install python3-picamera2
+```
+pip/uv cannot install picamera2 correctly on Pi OS — always use apt.
+
+**Dev** (linting, testing, docs):
+```
+pytest>=7.0
+ruff>=0.4
+mkdocs>=1.5
+mkdocs-material>=9.0
+mkdocstrings[python]>=0.24
+```
+
+Install runtime deps on the Pi:
+```bash
+uv sync
+# or without uv:
+pip install opencv-python-headless python-dotenv
+```
+
+Install dev deps:
+```bash
+uv sync --extra dev
 ```
 
 ---
@@ -395,15 +422,6 @@ def detect(frame):
 
 ---
 
-## Remaining Modules (not started)
-
-### `main.py`
-- Initialize all modules
-- Main loop: capture → detect → record → notify
-- Graceful shutdown on Ctrl+C
-
----
-
 ## Build Order (for reference)
 
 1. ~~`config.py`~~ — DONE
@@ -411,7 +429,100 @@ def detect(frame):
 3. ~~`notifier.py`~~ — DONE
 4. ~~`camera.py`~~ — DONE
 5. ~~`motion_detector.py`~~ — DONE
-6. `main.py` — not started
+6. ~~`main.py`~~ — DONE
+
+---
+
+### `main.py` — COMPLETE
+
+Wires all modules together. Runs the capture → detect → record → notify loop with
+graceful `KeyboardInterrupt` shutdown and error handling in the finally block.
+
+Key behaviours:
+- Recording window extends by `MOTION_COOLDOWN_SEC + POST_MOTION_BUFFER_SEC` each time motion fires, so continuous motion keeps the clip running
+- Snapshot and email errors are caught and logged without crashing the loop
+- `camera.close()` is always called in `finally` to release hardware cleanly
+
+```python
+# main.py
+import time
+import logging
+import config
+import camera
+import motion_detector
+import notifier
+import storage
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+
+def main():
+    logging.info("Starting Pi Night Vision Motion Camera...")
+    currently_recording = False
+    recording_stop_time = None
+
+    try:
+        logging.info("Camera and detector initialized. Entering main loop...")
+        while True:
+            frame = camera.get_frame()
+            motion, annotated_frame = motion_detector.detect(frame)
+            now = time.time()
+
+            if motion:
+                if not currently_recording:
+                    logging.info("Motion detected! Starting recording and sending alert.")
+                    filepath = storage.get_video_path()
+                    camera.start_recording(filepath)
+                    currently_recording = True
+                    try:
+                        snapshot_path = storage.save_snapshot(frame)
+                        notifier.send_alert(snapshot_path)
+                    except Exception as e:
+                        logging.error(f"Error handling snapshot or email alert: {e}")
+                else:
+                    logging.info("Motion detected while already recording. Extending recording time.")
+                recording_stop_time = now + config.MOTION_COOLDOWN_SEC + config.POST_MOTION_BUFFER_SEC
+
+            if currently_recording and recording_stop_time is not None:
+                if now >= recording_stop_time:
+                    logging.info("No motion detected recently. Stopping recording.")
+                    camera.stop_recording()
+                    currently_recording = False
+                    recording_stop_time = None
+
+            time.sleep(0.01)
+
+    except KeyboardInterrupt:
+        logging.info("Interrupt received (Ctrl+C). Shutting down...")
+    except Exception as e:
+        logging.error(f"Unexpected error in main loop: {e}")
+    finally:
+        if currently_recording:
+            try:
+                camera.stop_recording()
+            except Exception as e:
+                logging.error(f"Error stopping recording during cleanup: {e}")
+        try:
+            camera.close()
+            logging.info("Camera resources released.")
+        except Exception as e:
+            logging.error(f"Error closing camera: {e}")
+        logging.info("System shutdown complete.")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### Docstrings — COMPLETE
+
+Google-style docstrings added to all public functions in `camera.py`,
+`config.py`, `motion_detector.py`, `notifier.py`, and `storage.py` to
+support `mkdocstrings` auto-generated API documentation.
 
 ---
 
@@ -419,6 +530,7 @@ def detect(frame):
 
 - [ ] Enable camera: `sudo raspi-config` → Interface Options → Camera
 - [ ] Update system: `sudo apt update && sudo apt upgrade`
-- [ ] Install dependencies: `pip install picamera2 opencv-python-headless python-dotenv`
+- [ ] Install picamera2 via apt: `sudo apt install python3-picamera2`
+- [ ] Install Python deps: `uv sync` (or `pip install opencv-python-headless python-dotenv`)
 - [ ] Fill in `.env` with Gmail credentials
 - [ ] Test camera is detected: `libcamera-hello`
