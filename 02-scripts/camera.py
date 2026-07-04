@@ -30,7 +30,6 @@ _camera.start()
 
 
 def get_frame():
-    
     """Capture a single frame from the live camera feed.
 
     Returns:
@@ -76,14 +75,14 @@ def stop_recording():
 
 
 def close():
-     """Shut down the camera and release the hardware.
+    """Shut down the camera and release the hardware.
 
     Call this on exit (e.g. after KeyboardInterrupt) to ensure
     the camera is released cleanly rather than dying mid-frame.
     """
-    # fully shuts down the camera. This will be called in main.py 
-    # when the user hits Ctrl+C, so the hardware is released cleanly 
+    # fully shuts down the camera. This will be called in main.py
+    # when the user hits Ctrl+C, so the hardware is released cleanly
     # instead of just dying mid-frame.
-_camera.stop()
+    _camera.stop()
 
 
