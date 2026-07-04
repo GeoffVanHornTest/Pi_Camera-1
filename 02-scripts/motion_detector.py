@@ -21,6 +21,19 @@ _last_motion = 0
 # (same trick we used with _last_sent in notifier.py).
 
 def detect(frame):
+    """Analyse a frame for motion and apply cooldown filtering.
+
+    Compares the frame against a background model using MOG2. Returns
+    True only if a contour larger than MOTION_THRESHOLD is found and
+    enough time has passed since the last motion event.
+
+    Args:
+        frame: A BGR numpy.ndarray from camera.get_frame().
+
+    Returns:
+        tuple: (motion_detected, frame) where motion_detected is a bool
+        and frame is the original frame unchanged.
+    """
     global _last_motion
     # tells Python we want to modify the module-level variable, not create a new 
     # local one (same pattern as global _last_sent in notifier.py)

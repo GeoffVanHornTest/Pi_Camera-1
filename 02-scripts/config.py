@@ -3,6 +3,13 @@
 # All other modules import their settings from here — change a value
 # once here and it takes effect everywhere.
 
+"""Central settings for the PI Camera system.
+
+All other modules import their configuration from here. Values are
+loaded from a .env file for credentials and defined as constants for
+tunable parameters. Change a value here and it takes effect everywhere.
+"""
+
 import os
 from dotenv import load_dotenv
 
