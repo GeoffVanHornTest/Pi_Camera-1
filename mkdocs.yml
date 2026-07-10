@@ -1,6 +1,7 @@
 site_name: PI Camera
 site_description: Raspberry Pi night vision motion camera with Gmail alerts
 repo_url: https://github.com/GeoffVanHorn/PI_Camera
+docs_dir: 04-docs
 
 theme:
   name: material

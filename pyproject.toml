@@ -40,4 +40,4 @@ target-version = "py310"
 select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
-testpaths = ["02-scripts"]
+testpaths = ["03-tests"]
