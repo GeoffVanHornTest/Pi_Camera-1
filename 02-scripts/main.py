@@ -42,3 +42,15 @@ def main():
             camera.stop_recording()
             currently_recording = False
             print("Motion stopped — recording saved.")
+
+
+if __name__ == "__main__":
+    # only run when this file is executed directly (not when imported by another module)
+    try:
+        main()
+    except KeyboardInterrupt:
+        # user pressed Ctrl+C — shut down cleanly instead of dying mid-frame
+        print("\nStopping PI Camera...")
+        camera.close()
+        # release the camera hardware so it's not left in a locked state
+        print("Camera released. Goodbye.")
