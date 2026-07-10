@@ -1,5 +1,11 @@
 # main.py
 
+
+"""Entry point for the PI Camera motion detection system.
+
+Initialises all modules and runs the main loop. Press Ctrl+C to stop.
+"""
+
 import time
 
 import camera
@@ -10,6 +16,8 @@ import storage
 
 
 def main():
+    """Run the camera loop — detect motion, record clips, and send alerts."""
+
     currently_recording = False
     # tracks whether a video clip is actively being recorded
 
@@ -42,7 +50,6 @@ def main():
             camera.stop_recording()
             currently_recording = False
             print("Motion stopped — recording saved.")
-
 
 if __name__ == "__main__":
     # only run when this file is executed directly (not when imported by another module)
