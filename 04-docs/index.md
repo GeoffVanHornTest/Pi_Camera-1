@@ -1,6 +1,6 @@
 # PI Camera
 
-A Raspberry Pi night vision motion camera with automated Gmail alerts.s
+A Raspberry Pi night vision motion camera with automated Gmail alerts.
 
 ## What it does
 
@@ -16,4 +16,10 @@ A Raspberry Pi night vision motion camera with automated Gmail alerts.s
 
 ## Quick start
 
-See the [project plan](https://github.com/GeoffVanHorn/PI_Camera) for setup instructions.
+See the [GitHub repository](https://github.com/GeoffVanHornTest/Pi_Camera-1) for setup instructions.
+
+## Project analysis
+
+A three-plan independent analysis of the codebase — what works, what doesn't, and the prioritised fix order.
+
+[View the Three-Plan Analysis](plan-compare.html)
