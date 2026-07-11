@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PI Camera — clips output
+00-clips/*
+!00-clips/.gitkeep
+clips/
