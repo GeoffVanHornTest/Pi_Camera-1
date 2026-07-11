@@ -1,8 +1,18 @@
 # Alternative Notification Plan — Telegram + Google Drive
 
 **Status:** Planning only — no existing code changed.
-**Replaces:** `notifier.py` email approach
-**Adds:** `telegram_notifier.py`, `drive_uploader.py`
+
+## Release roadmap
+
+| Version | Branch | Content |
+|---------|--------|---------|
+| v0.1.0 | `main` | Gmail SMTP — **released ✅** |
+| v0.2.0 | `feature/telegram-drive` | Telegram + Google Drive backend |
+| v0.3.0 | `feature/setup-gui` | Tkinter setup GUI + unified credential management |
+
+---
+
+**This file covers v0.2.0 (Phase 1) and v0.3.0 (Phase 2).**
 
 ---
 
@@ -431,8 +441,7 @@ else:
 
 ### Implementation order
 
-1. Get Gmail path working end-to-end on real hardware (current path)
-2. Branch: implement Telegram + Drive backend (`alt_plan.md` Phase 1)
-3. Branch: build setup GUI — reads/writes `~/.config/pi-camera/settings.json`
-4. Merge: `notifier_factory.py` selects backend at runtime; both branches tested
-5. Remove `.env` from the recommended setup path (keep as CI/headless fallback only)
+1. ~~Get Gmail path working end-to-end on real hardware~~ — done, released as v0.1.0
+2. `feature/telegram-drive` — implement Telegram + Drive backend, release as v0.2.0
+3. `feature/setup-gui` — Tkinter GUI + `notifier_factory.py`, release as v0.3.0
+4. `.env` becomes CI/headless fallback only once the GUI is the standard setup path
