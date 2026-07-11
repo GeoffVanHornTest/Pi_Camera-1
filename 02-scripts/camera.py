@@ -84,5 +84,6 @@ def close():
     # when the user hits Ctrl+C, so the hardware is released cleanly
     # instead of just dying mid-frame.
     _camera.stop()
+    _camera.close()  # releases /dev/video0 — without this, next launch may fail with "camera already in use"
 
 
