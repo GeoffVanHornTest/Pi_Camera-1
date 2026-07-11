@@ -25,9 +25,7 @@ load_dotenv()
 # returns None, which will produce a clear error later rather than a
 # mysterious crash.
 GMAIL_SENDER = os.getenv("GMAIL_SENDER")  # address the Pi sends from
-GMAIL_PASSWORD = os.getenv(
-    "GMAIL_APP_PASSWORD"
-)  # Gmail App Password (not your login password)
+GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")  # Gmail App Password (not your login password)
 GMAIL_RECIPIENT = os.getenv("GMAIL_RECIPIENT")  # address the alert is sent to
 
 # --- Camera ---
@@ -61,8 +59,25 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
 # --- Notifications ---
-# NOTIFICATION_COOLDOWN_SEC is the minimum gap between alert emails.
+# NOTIFICATION_COOLDOWN_SEC is the minimum gap between alert emails (Gmail backend).
 # This is separate from MOTION_COOLDOWN_SEC — motion can be detected
 # every 10 seconds, but you only want one email per minute at most,
 # even if motion is continuous.
 NOTIFICATION_COOLDOWN_SEC = 60
+
+# --- Telegram ---
+# TELEGRAM_BOT_TOKEN is issued by @BotFather when you create a bot.
+# TELEGRAM_CHAT_ID is the numeric ID of the chat the bot should post to —
+# find it by messaging your bot and calling /getUpdates on the Bot API.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# --- Google Drive ---
+# DRIVE_FOLDER_ID is the ID at the end of the Drive folder URL.
+# DRIVE_SERVICE_ACCOUNT_JSON is the path to the service account key file —
+# defaults to service_account.json in the same directory as this file.
+DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID")
+DRIVE_SERVICE_ACCOUNT_JSON = os.getenv(
+    "DRIVE_SERVICE_ACCOUNT_JSON",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "service_account.json"),
+)

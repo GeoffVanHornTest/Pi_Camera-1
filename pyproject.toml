@@ -18,6 +18,10 @@ license = { text = "MIT" }
 dependencies = [
     "opencv-python-headless",
     "python-dotenv",
+    "requests",
+    "google-api-python-client",
+    "google-auth-httplib2",
+    "google-auth",
     # picamera2 is installed via apt on Raspberry Pi OS:
     #   sudo apt install python3-picamera2
     # Do not add it here — pip/uv cannot install it correctly on Pi.

@@ -221,3 +221,4 @@ __marimo__/
 00-clips/*
 !00-clips/.gitkeep
 clips/
+02-scripts/service_account.json
