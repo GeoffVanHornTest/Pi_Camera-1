@@ -1,24 +1,26 @@
 # motion_detector.py
-import cv2
 import time
+
 import config
+import cv2
 
 _bg_subtractor = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
 _last_motion = 0
 
-#Two module-level variables, same pattern as _camera in camera.py.
+# Two module-level variables, same pattern as _camera in camera.py.
 
-#_bg_subtractor — MOG2 stands for "Mixture of Gaussians 2". It works by 
-# watching many frames over time and building a statistical model of 
-# what the "background" looks like. When a new frame comes in, 
-# anything that doesn't match that model gets painted white in a mask 
-# — that's your moving object. detectShadows=False tells it 
-# not to bother classifying shadows separately, which saves 
+# _bg_subtractor — MOG2 stands for "Mixture of Gaussians 2". It works by
+# watching many frames over time and building a statistical model of
+# what the "background" looks like. When a new frame comes in,
+# anything that doesn't match that model gets painted white in a mask
+# — that's your moving object. detectShadows=False tells it
+# not to bother classifying shadows separately, which saves
 # CPU and keeps the mask simpler.
 
-#_last_motion — stores the timestamp of the last time motion was detected. 
-# Set to 0 so the very first motion event always triggers immediately 
+# _last_motion — stores the timestamp of the last time motion was detected.
+# Set to 0 so the very first motion event always triggers immediately
 # (same trick we used with _last_sent in notifier.py).
+
 
 def detect(frame):
     """Analyse a frame for motion — raw per-frame signal, no cooldown.
@@ -68,6 +70,3 @@ def new_event_allowed():
         _last_motion = now
         return True
     return False
-
-        
-

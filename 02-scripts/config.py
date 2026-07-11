@@ -11,6 +11,7 @@ tunable parameters. Change a value here and it takes effect everywhere.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # load_dotenv() reads the .env file in this folder and pushes its
@@ -23,16 +24,18 @@ load_dotenv()
 # os.getenv() looks up the value by key name. If the key is missing it
 # returns None, which will produce a clear error later rather than a
 # mysterious crash.
-GMAIL_SENDER    = os.getenv("GMAIL_SENDER")       # address the Pi sends from
-GMAIL_PASSWORD  = os.getenv("GMAIL_APP_PASSWORD") # Gmail App Password (not your login password)
-GMAIL_RECIPIENT = os.getenv("GMAIL_RECIPIENT")    # address the alert is sent to
+GMAIL_SENDER = os.getenv("GMAIL_SENDER")  # address the Pi sends from
+GMAIL_PASSWORD = os.getenv(
+    "GMAIL_APP_PASSWORD"
+)  # Gmail App Password (not your login password)
+GMAIL_RECIPIENT = os.getenv("GMAIL_RECIPIENT")  # address the alert is sent to
 
 # --- Camera ---
 # RESOLUTION is a (width, height) tuple in pixels. 1920x1080 is full HD
 # and well within the OV5647's capability.
 # FPS is frames per second captured — 30 is standard for smooth video.
-RESOLUTION  = (1920, 1080)
-FPS         = 30
+RESOLUTION = (1920, 1080)
+FPS = 30
 
 # --- Motion detection ---
 # MOTION_THRESHOLD is the minimum contour area in pixels that counts as
@@ -43,7 +46,7 @@ FPS         = 30
 # MOTION_COOLDOWN_SEC is how many seconds must pass after motion is first
 # detected before the detector can fire again. Prevents one continuous
 # movement from triggering hundreds of events.
-MOTION_THRESHOLD    = 500
+MOTION_THRESHOLD = 500
 MOTION_COOLDOWN_SEC = 10
 
 # --- Recording ---
@@ -51,10 +54,11 @@ MOTION_COOLDOWN_SEC = 10
 # after motion stops. Without it, the clip would cut off the moment the
 # subject leaves frame.
 #
-# CLIPS_DIR is the folder where video files are saved. This matches the
-# clips/ directory in the project folder.
+# CLIPS_DIR is the folder where video files are saved, anchored to the
+# project root regardless of which directory the script is run from.
 POST_MOTION_BUFFER_SEC = 5
-CLIPS_DIR              = "clips"
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
 # --- Notifications ---
 # NOTIFICATION_COOLDOWN_SEC is the minimum gap between alert emails.

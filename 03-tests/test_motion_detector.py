@@ -1,11 +1,11 @@
-import sys
 import os
+import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
-import numpy as np
 import motion_detector
+import numpy as np
 
 
 def static_frame():
@@ -41,7 +41,7 @@ def test_static_frame_does_not_trigger_motion():
 
 
 def test_detect_returns_true_on_consecutive_motion_frames():
-    """detect() must return True on every frame with motion — no cooldown suppression."""
+    """detect() returns True on every motion frame — no cooldown applied."""
     for _ in range(30):
         motion_detector.detect(static_frame())
 
@@ -56,12 +56,15 @@ def test_detect_returns_true_on_consecutive_motion_frames():
 def test_new_event_allowed_blocks_rapid_retriggering(monkeypatch):
     """new_event_allowed() must return False when called within the cooldown window."""
     monkeypatch.setattr(motion_detector, "_last_motion", 0)
-    assert motion_detector.new_event_allowed() is True   # first call fires
+    assert motion_detector.new_event_allowed() is True  # first call fires
     assert motion_detector.new_event_allowed() is False  # immediate second call blocked
 
 
 def test_new_event_allowed_fires_after_cooldown(monkeypatch):
     """new_event_allowed() must return True once MOTION_COOLDOWN_SEC has elapsed."""
     import config
-    monkeypatch.setattr(motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1)
+
+    monkeypatch.setattr(
+        motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1
+    )
     assert motion_detector.new_event_allowed() is True

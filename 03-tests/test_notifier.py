@@ -1,6 +1,6 @@
-import sys
 import os
-from unittest.mock import patch, MagicMock
+import sys
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
@@ -26,7 +26,7 @@ def test_send_alert_respects_cooldown(monkeypatch, tmp_path):
 
 
 def test_send_alert_updates_last_sent(monkeypatch, tmp_path):
-    """After a successful send, _last_sent must be updated to prevent immediate resend."""
+    """After a successful send, _last_sent must be updated to prevent resend."""
     monkeypatch.setattr(notifier, "_last_sent", 0)
 
     snapshot = tmp_path / "snapshot.jpg"
@@ -44,6 +44,7 @@ def test_send_alert_updates_last_sent(monkeypatch, tmp_path):
 def test_send_alert_skips_when_in_cooldown(monkeypatch, tmp_path):
     """Call made during active cooldown must return without touching SMTP."""
     import time
+
     monkeypatch.setattr(notifier, "_last_sent", time.time())
 
     snapshot = tmp_path / "snapshot.jpg"
