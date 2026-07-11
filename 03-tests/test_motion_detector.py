@@ -40,18 +40,28 @@ def test_static_frame_does_not_trigger_motion():
     assert motion is False
 
 
-def test_cooldown_prevents_rapid_retriggering(monkeypatch):
-    """Second detection within cooldown window must return False even on genuine motion."""
-    # Reset last_motion to 0 so the first call can fire
-    monkeypatch.setattr(motion_detector, "_last_motion", 0)
-
-    # Feed enough frames to let MOG2 settle, then inject a white frame
+def test_detect_returns_true_on_consecutive_motion_frames():
+    """detect() must return True on every frame with motion — no cooldown suppression."""
     for _ in range(30):
         motion_detector.detect(static_frame())
 
     white_frame = np.full((1080, 1920, 3), 255, dtype=np.uint8)
     motion1, _ = motion_detector.detect(white_frame)
-
-    # Immediately call again — cooldown should suppress the second trigger
     motion2, _ = motion_detector.detect(white_frame)
-    assert motion2 is False
+    # both calls should return True — cooldown is no longer detect()'s responsibility
+    assert motion1 is True
+    assert motion2 is True
+
+
+def test_new_event_allowed_blocks_rapid_retriggering(monkeypatch):
+    """new_event_allowed() must return False when called within the cooldown window."""
+    monkeypatch.setattr(motion_detector, "_last_motion", 0)
+    assert motion_detector.new_event_allowed() is True   # first call fires
+    assert motion_detector.new_event_allowed() is False  # immediate second call blocked
+
+
+def test_new_event_allowed_fires_after_cooldown(monkeypatch):
+    """new_event_allowed() must return True once MOTION_COOLDOWN_SEC has elapsed."""
+    import config
+    monkeypatch.setattr(motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1)
+    assert motion_detector.new_event_allowed() is True

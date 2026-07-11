@@ -33,9 +33,10 @@ def main():
         # analyse the frame for motion — returns (bool, frame). We discard the frame with _
         # because we already have it, and we don't need the annotated version in main
 
-        if motion and not currently_recording:
-            # only start a new clip if motion was detected AND we're not already recording
-            # the second condition prevents stacking recordings on top of each other
+        if motion and not currently_recording and motion_detector.new_event_allowed():
+            # start a new clip only when: motion is present, not already recording,
+            # and enough time has passed since the last event (cooldown gate).
+            # detect() is the raw per-frame signal — new_event_allowed() is the gate.
             filepath = storage.get_video_path()
             camera.start_recording(filepath)
             snapshot = storage.save_snapshot(frame)

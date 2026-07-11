@@ -21,11 +21,12 @@ _last_motion = 0
 # (same trick we used with _last_sent in notifier.py).
 
 def detect(frame):
-    """Analyse a frame for motion and apply cooldown filtering.
+    """Analyse a frame for motion — raw per-frame signal, no cooldown.
 
     Compares the frame against a background model using MOG2. Returns
-    True only if a contour larger than MOTION_THRESHOLD is found and
-    enough time has passed since the last motion event.
+    True on every frame where real motion is present, regardless of how
+    recently a motion event was triggered. Use new_event_allowed() to
+    gate whether a new clip or notification should start.
 
     Args:
         frame: A BGR numpy.ndarray from camera.get_frame().
@@ -34,59 +35,39 @@ def detect(frame):
         tuple: (motion_detected, frame) where motion_detected is a bool
         and frame is the original frame unchanged.
     """
-    global _last_motion
-    # tells Python we want to modify the module-level variable, not create a new 
-    # local one (same pattern as global _last_sent in notifier.py)
-
     fg_mask = _bg_subtractor.apply(frame)
-
-   
-            
-
-#apply() is where the MOG2 magic happens. You hand it a frame, it compares 
-# it against its background model, and returns a foreground mask 
-# — a black-and-white image the same size as your frame where:
-
-# White pixels = something moved here
-# Black pixels = background, nothing changed
-#The mask is noisy at this point — there'll be speckles and small blobs 
-# from things like a leaf moving or a camera artifact. The next step is 
-# where we filter those out.
+    # apply() compares this frame against the background model and returns
+    # a mask where white pixels = something moved, black pixels = background
 
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #fg_mask — the black-and-white image we just made
-    # cv2.RETR_EXTERNAL — only return the outermost outline of each blob, ignore any holes inside
-    # cv2.CHAIN_APPROX_SIMPLE — compress the outline down to just its corner points instead 
-    # of storing every single pixel on the edge (saves memory, still accurate enough)
+    # find the outlines of white blobs in the mask — each blob is a candidate
+    # moving object. RETR_EXTERNAL ignores holes inside blobs, CHAIN_APPROX_SIMPLE
+    # stores only corner points rather than every pixel on the edge.
 
-    motion_detected = False
+    motion_detected = any(
+        cv2.contourArea(c) > config.MOTION_THRESHOLD for c in contours
+    )
+    # if any single contour exceeds the threshold it's real motion — speckles
+    # and artifacts produce tiny contours (10-20 px), a person produces thousands
 
-    for contour in contours:
-        #  start by assuming no motion. Then we loop through every contour and measure its area in pixels. 
-        # If any single contour is larger than MOTION_THRESHOLD (which we set to 500 in config.py), 
-        # something real moved — we set the flag and break out of the loop immediately 
-        # since we don't need to check the rest.
-        # This is the noise filter. A speck of dust or a compression artifact might produce a 
-        # contour of 10–20 pixels. A person walking through frame will produce a contour of thousands of pixels. 
-        # The threshold sits in between.
+    return motion_detected, frame
 
-        if cv2.contourArea(contour) > config.MOTION_THRESHOLD:
-            motion_detected = True
-            break
 
+def new_event_allowed():
+    """Return True if enough time has passed to treat this as a new motion event.
+
+    Separate from detect() so the recording loop can key off the raw motion
+    signal while only new clips and alerts are cooldown-gated.
+
+    Returns:
+        bool: True if MOTION_COOLDOWN_SEC has elapsed since the last event.
+    """
+    global _last_motion
     now = time.time()
-    # how many seconds have passed since the last confirmed motion event
-
-    if motion_detected and (now - _last_motion) > config.MOTION_COOLDOWN_SEC:
-        # The if only returns True when motion was detected and enough time has passed. 
-        # If motion is detected but we're still in cooldown, it falls through to return False, frame 
-        # — silently ignored.
-       
+    if now - _last_motion > config.MOTION_COOLDOWN_SEC:
         _last_motion = now
-        return True, frame
-        # We always return the frame either way so main.py can use it regardless
-
-    return False, frame
+        return True
+    return False
 
         
 
