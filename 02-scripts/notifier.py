@@ -1,6 +1,7 @@
 # notifier.py
 
 
+import os
 import smtplib
 import time
 from email.mime.multipart import MIMEMultipart
@@ -55,7 +56,7 @@ def send_alert(snapshot_path):
         # loads the raw image bytes into that container
 
     encoders.encode_base64(attachment)
-    attachment.add_header("Content-Disposition", f"attachment; filename={snapshot_path}")
+    attachment.add_header("Content-Disposition", f"attachment; filename={os.path.basename(snapshot_path)}")
      # tells the email client this is a downloadable attachment and sets the filename
     msg.attach(attachment)
     # adds it to the email alongside the text body
