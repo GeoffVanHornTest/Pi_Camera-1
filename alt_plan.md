@@ -16,6 +16,29 @@
 
 ---
 
+## Why Telegram and not Signal
+
+Signal was considered as an alternative. The comparison:
+
+| | Telegram | Signal |
+|---|---|---|
+| Bot / automation API | Official, purpose-built | None — requires `signal-cli` (community tool) |
+| Implementation | `requests.post` — no extra packages | Java runtime + phone number registration |
+| Encryption | Server-client (Telegram can read messages) | End-to-end by default |
+| Reliability | Stable official API | signal-cli can break when Signal updates servers |
+| Privacy | Closed-source server | Open-source protocol, stronger reputation |
+| Clip delivery | `sendVideo` up to 50 MB inline | Works via signal-cli but not seamless |
+
+**Decision: Telegram.** The content being sent is "Motion detected" + a driveway photo.
+The privacy risk of Telegram seeing that is low. Signal's E2E advantage is most meaningful
+for sensitive personal data (medical, financial, legal) — not home security alerts.
+The reliability and simplicity of the official Telegram Bot API are the right tradeoff here.
+
+Signal would be the correct choice for a deployment in a sensitive environment
+(law firm, medical practice, etc.) where the complexity of signal-cli is justified.
+
+---
+
 ## Overview
 
 Instead of sending an email with an attached snapshot via SMTP, this plan:
