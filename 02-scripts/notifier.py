@@ -1,5 +1,10 @@
 # notifier.py
+"""Gmail alert sender for the PI Camera system.
 
+Sends an email with a snapshot attached when motion is detected.
+A cooldown (NOTIFICATION_COOLDOWN_SEC) prevents alert flooding when
+motion is continuous.
+"""
 
 import os
 import smtplib

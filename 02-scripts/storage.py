@@ -1,7 +1,11 @@
 # storage.py
-# Handles all file system operations — generating timestamped filenames
-# for video clips and snapshots, saving images to disk, and ensuring the
-# clips folder exists before anything tries to write to it.
+"""File system operations for the PI Camera system.
+
+Handles generating timestamped filenames for video clips and snapshots,
+saving images to disk, and cleaning up old files to prevent the SD card
+from filling up. The clips directory is created on import if it does not
+already exist.
+"""
 
 import os
 import time
