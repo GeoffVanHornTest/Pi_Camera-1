@@ -1,0 +1,13 @@
+[Unit]
+Description=PI Camera motion detection
+After=network.target
+
+[Service]
+ExecStart=/home/pi/Desktop/PI_Camera/.venv/bin/python /home/pi/Desktop/PI_Camera/02-scripts/main.py
+WorkingDirectory=/home/pi/Desktop/PI_Camera/02-scripts
+Restart=always
+RestartSec=5
+User=pi
+
+[Install]
+WantedBy=multi-user.target

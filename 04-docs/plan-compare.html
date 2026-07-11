@@ -1,0 +1,947 @@
+<title>PI Camera — Three-Plan Analysis</title>
+<style>
+  /* ── Tokens ─────────────────────────────────────────────── */
+  :root {
+    --bg:        #f7f6f1;
+    --surface:   #ffffff;
+    --border:    #e0ddd4;
+    --text:      #1a1814;
+    --muted:     #6b6560;
+    --accent:    #d4820a;
+    --accent-bg: #fef3de;
+
+    --found:     #1d7a4a;
+    --found-bg:  #eaf7f0;
+    --partial:   #b06a00;
+    --partial-bg:#fff4e0;
+    --missed:    #c03030;
+    --missed-bg: #fdf0f0;
+    --na:        #999;
+    --na-bg:     #f4f4f4;
+
+    --crit-bar:  #c03030;
+    --med-bar:   #d4820a;
+    --low-bar:   #5a7fa8;
+
+    --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #0e1118;
+      --surface:   #161b27;
+      --border:    #252d42;
+      --text:      #e8e4db;
+      --muted:     #7a8099;
+      --accent:    #f0a030;
+      --accent-bg: #2a1f08;
+
+      --found:     #4ecb84;
+      --found-bg:  #0d2a1c;
+      --partial:   #f0a030;
+      --partial-bg:#261c04;
+      --missed:    #e06060;
+      --missed-bg: #280f0f;
+      --na:        #4a5068;
+      --na-bg:     #141820;
+
+      --crit-bar:  #e06060;
+      --med-bar:   #f0a030;
+      --low-bar:   #7aaacf;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --bg:        #f7f6f1;
+    --surface:   #ffffff;
+    --border:    #e0ddd4;
+    --text:      #1a1814;
+    --muted:     #6b6560;
+    --accent:    #d4820a;
+    --accent-bg: #fef3de;
+    --found:     #1d7a4a; --found-bg:  #eaf7f0;
+    --partial:   #b06a00; --partial-bg:#fff4e0;
+    --missed:    #c03030; --missed-bg: #fdf0f0;
+    --na:        #999;    --na-bg:     #f4f4f4;
+    --crit-bar:  #c03030; --med-bar:   #d4820a; --low-bar:   #5a7fa8;
+  }
+
+  :root[data-theme="dark"] {
+    --bg:        #0e1118;
+    --surface:   #161b27;
+    --border:    #252d42;
+    --text:      #e8e4db;
+    --muted:     #7a8099;
+    --accent:    #f0a030;
+    --accent-bg: #2a1f08;
+    --found:     #4ecb84; --found-bg:  #0d2a1c;
+    --partial:   #f0a030; --partial-bg:#261c04;
+    --missed:    #e06060; --missed-bg: #280f0f;
+    --na:        #4a5068; --na-bg:     #141820;
+    --crit-bar:  #e06060; --med-bar:   #f0a030; --low-bar:   #7aaacf;
+  }
+
+  /* ── Reset & Base ────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  .page-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 40px 28px;
+  }
+
+  .page-header .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .page-header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    text-wrap: balance;
+    margin-bottom: 6px;
+  }
+
+  .page-header .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  /* ── Legend ─────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 16px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .legend-chip {
+    display: inline-block;
+    width: 52px;
+    height: 20px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    line-height: 20px;
+  }
+
+  .chip-found    { background: var(--found-bg);   color: var(--found);   }
+  .chip-partial  { background: var(--partial-bg); color: var(--partial); }
+  .chip-missed   { background: var(--missed-bg);  color: var(--missed);  }
+  .chip-na       { background: var(--na-bg);       color: var(--na);      }
+  .chip-new      { background: var(--accent-bg);  color: var(--accent);  }
+
+  /* ── Main layout ─────────────────────────────────────────── */
+  .content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 36px 40px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  /* ── Plan intro cards ────────────────────────────────────── */
+  .plan-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .plan-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+
+  .plan-card.p1 { border-top-color: #5a7fa8; }
+  .plan-card.p2 { border-top-color: #d4820a; }
+  .plan-card.p3 { border-top-color: #1d7a4a; }
+
+  .plan-card .plan-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .plan-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .plan-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* ── Section ─────────────────────────────────────────────── */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .severity-bar {
+    width: 4px;
+    height: 22px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .sev-critical { background: var(--crit-bar); }
+  .sev-medium   { background: var(--med-bar); }
+  .sev-low      { background: var(--low-bar); }
+
+  .section-label h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .section-label .count {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  /* ── Table ───────────────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead th {
+    background: var(--surface);
+    padding: 11px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+
+  thead th:first-child { width: 28%; min-width: 200px; }
+  thead th:not(:first-child) { width: 24%; }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+
+  tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface) 60%, var(--bg)); }
+  tbody tr:nth-child(odd) td  { background: var(--surface); }
+
+  td {
+    padding: 14px 16px;
+    vertical-align: top;
+  }
+
+  td:first-child {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    border-right: 1px solid var(--border);
+  }
+
+  td:first-child .issue-id {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 400;
+    margin-bottom: 3px;
+  }
+
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    width: fit-content;
+  }
+
+  .cell-note {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  /* ── Unique findings ─────────────────────────────────────── */
+  .unique-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .unique-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .unique-card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .u1 .unique-card-header { color: #5a7fa8; background: color-mix(in srgb, #5a7fa8 8%, var(--surface)); }
+  .u2 .unique-card-header { color: var(--partial); background: var(--partial-bg); }
+  .u3 .unique-card-header { color: var(--found); background: var(--found-bg); }
+
+  .unique-items {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .unique-item {
+    font-size: 13px;
+    color: var(--text);
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+    line-height: 1.4;
+  }
+
+  .unique-item .ui-note {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .none-note {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+    padding: 12px 16px;
+  }
+
+  /* ── Summary bar ─────────────────────────────────────────── */
+  .summary-box {
+    background: var(--accent-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 7px;
+    padding: 20px 24px;
+  }
+
+  .summary-box h3 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+  }
+
+  .fix-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    list-style: none;
+  }
+
+  .fix-list li {
+    font-size: 13.5px;
+    color: var(--text);
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+
+  .fix-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    flex-shrink: 0;
+    width: 22px;
+  }
+
+  /* ── Responsive ──────────────────────────────────────────── */
+  @media (max-width: 700px) {
+    .page-header { padding: 24px 20px 20px; }
+    .legend      { padding: 14px 20px; gap: 12px; }
+    .content     { padding: 24px 20px 48px; }
+    .plan-cards  { grid-template-columns: 1fr; }
+    .unique-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<header class="page-header">
+  <div class="eyebrow">PI Camera — Independent Analysis</div>
+  <h1>Three-Plan Comparison</h1>
+  <div class="subtitle">Design doc vs. post-implementation audit vs. independent audit — what each found, what each missed</div>
+</header>
+
+<div class="legend">
+  <div class="legend-item">
+    <span class="legend-chip chip-found">FOUND</span>
+    Identified and addressed
+  </div>
+  <div class="legend-item">
+    <span class="legend-chip chip-partial">PARTIAL</span>
+    Mentioned, less detail
+  </div>
+  <div class="legend-item">
+    <span class="legend-chip chip-missed">MISSED</span>
+    Not identified
+  </div>
+  <div class="legend-item">
+    <span class="legend-chip chip-na">N/A</span>
+    Design doc — predates code
+  </div>
+  <div class="legend-item">
+    <span class="legend-chip chip-new">NEW</span>
+    Unique to this plan
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Plan intros -->
+  <div class="plan-cards">
+    <div class="plan-card p1">
+      <div class="plan-label">Plan 1 — Original</div>
+      <h3>Forward-looking design doc</h3>
+      <p>Written before any code existed. Describes intent: module responsibilities, build order, hardware setup. Cannot identify bugs because the implementation hadn't happened yet.</p>
+    </div>
+    <div class="plan-card p2">
+      <div class="plan-label">Plan 2 — Claude (Instance A)</div>
+      <h3>Post-implementation audit</h3>
+      <p>Read all modules and ran the test suite live on the Pi. Found the two critical bugs and verified the venv/picamera2 isolation issue with actual terminal commands.</p>
+    </div>
+    <div class="plan-card p3">
+      <div class="plan-label">Plan 3 — Claude Code (This session)</div>
+      <h3>Independent audit</h3>
+      <p>Written from a cold read of every module without consulting Plan 1 or Plan 2. Reached the same critical bugs independently, plus two findings neither previous plan flagged.</p>
+    </div>
+  </div>
+
+  <!-- Critical -->
+  <div>
+    <div class="section-label">
+      <div class="severity-bar sev-critical"></div>
+      <h2>Critical</h2>
+      <span class="count">— will prevent correct operation</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Plan 1</th>
+            <th>Plan 2</th>
+            <th>Plan 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="issue-id">C-01</span>
+              picamera2 invisible to project venv
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+                <span class="cell-note">Noted apt install is required but predates venv setup</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Verified live: system Python imports fine, .venv fails. Fix: <code>uv venv --system-site-packages</code></span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-partial">PARTIAL</span>
+                <span class="cell-note">Noted as known issue, deferred to Plan 2's finding — not re-verified independently</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">C-02</span>
+              Cooldown suppresses recording-continue signal — clips cap at ~5 s
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+                <span class="cell-note">Pseudocode shows intended correct behaviour but doesn't flag the bug</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Traced full event timeline. Proposed splitting detect() from should_notify()</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Same root cause, proposed same split. Added: this bug is invisible to unit tests — needs integration test</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">C-03</span>
+              ffmpeg not in setup checklist — start_recording() will crash on first motion
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-missed">MISSED</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found chip-new">NEW</span>
+                <span class="cell-note">FfmpegOutput shells out to the ffmpeg binary. Not installed by default on Pi OS. Not mentioned anywhere in setup docs.</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Medium -->
+  <div>
+    <div class="section-label">
+      <div class="severity-bar sev-medium"></div>
+      <h2>Medium</h2>
+      <span class="count">— runs, but with silent problems</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Plan 1</th>
+            <th>Plan 2</th>
+            <th>Plan 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="issue-id">M-01</span>
+              CLIPS_DIR resolves relative to CWD, not project root
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Confirmed via stray clips/ dir already in repo. Proposed os.path.abspath anchor.</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Same observation. Also noted code/docs disagree: code says clips/, docs say 00-clips/</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">M-02</span>
+              .gitignore missing clips output directory
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+                <span class="cell-note">PROGRESS.md claims clips/ is ignored — it isn't</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Verified by inspection — no clips/ or 00-clips/ rule present</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">M-03</span>
+              camera.close() leaves hardware locked — only calls stop(), not close()
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-missed">MISSED</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found chip-new">NEW</span>
+                <span class="cell-note">Picamera2 requires stop() + close() to release /dev/video0. Without close(), next launch may fail with "camera already in use"</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">M-04</span>
+              requirements.txt lists picamera2 as pip dependency
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Contradicts pyproject.toml's own comment. pip install will get a broken PyPI wheel.</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-missed">MISSED</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">M-05</span>
+              Email attachment filename includes directory path
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Fix: os.path.basename(snapshot_path)</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Same fix</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Low -->
+  <div>
+    <div class="section-label">
+      <div class="severity-bar sev-low"></div>
+      <h2>Low</h2>
+      <span class="count">— hygiene and future-proofing</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Plan 1</th>
+            <th>Plan 2</th>
+            <th>Plan 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="issue-id">L-01</span>
+              config.FPS defined but never passed to camera
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">Added: implies control that doesn't exist — wire it up or remove it</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">L-02</span>
+              No CI workflow
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-missed">MISSED</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">27 passing tests with no CI means regressions go undetected</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">L-03</span>
+              No startup credential validation
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-missed">MISSED</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found chip-new">NEW</span>
+                <span class="cell-note">Missing or wrong .env not discovered until first real motion event triggers send_alert()</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">L-04</span>
+              No disk space management for clips folder
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-partial">PARTIAL</span>
+                <span class="cell-note">Proposed cleanup_old_clips(days) in storage.py — never implemented</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">L-05</span>
+              No process supervision (systemd) for unattended deployment
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="issue-id">L-06</span>
+              ruff lint findings across scripts and tests
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-na">N/A</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-found">FOUND</span>
+                <span class="cell-note">32 findings verified live — 12 auto-fixable</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell">
+                <span class="chip chip-partial">PARTIAL</span>
+                <span class="cell-note">Mentioned but not quantified</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Unique findings -->
+  <div>
+    <div class="section-label">
+      <div class="severity-bar" style="background: var(--accent)"></div>
+      <h2>What each plan found that the others didn't</h2>
+    </div>
+    <div class="unique-grid">
+      <div class="unique-card u1">
+        <div class="unique-card-header">Plan 1 — Original</div>
+        <div class="none-note">No unique findings — written as a design doc before implementation. Its value is in documenting intent, build order, and the hardware rationale.</div>
+      </div>
+      <div class="unique-card u2">
+        <div class="unique-card-header">Plan 2 — Claude Instance A</div>
+        <div class="unique-items">
+          <div class="unique-item">
+            picamera2 venv isolation verified live
+            <span class="ui-note">Actually ran both python3 and .venv/bin/python to confirm — not just inferred from reading</span>
+          </div>
+          <div class="unique-item">
+            requirements.txt / pyproject.toml contradiction
+            <span class="ui-note">pip path installs a broken PyPI wheel; pyproject.toml correctly excludes picamera2</span>
+          </div>
+          <div class="unique-item">
+            ruff finding count (32) and auto-fix count (12)
+            <span class="ui-note">Quantified, not just mentioned</span>
+          </div>
+          <div class="unique-item">
+            pyproject.toml packages 02-scripts — invalid Python identifier
+            <span class="ui-note">Leading digit and hyphen make it unimportable if ever installed as a package</span>
+          </div>
+        </div>
+      </div>
+      <div class="unique-card u3">
+        <div class="unique-card-header">Plan 3 — Claude Code</div>
+        <div class="unique-items">
+          <div class="unique-item">
+            ffmpeg missing from setup checklist (Critical)
+            <span class="ui-note">FfmpegOutput shells out to the ffmpeg binary — not a default Pi OS install — will crash silently on first motion event</span>
+          </div>
+          <div class="unique-item">
+            camera.close() incomplete shutdown
+            <span class="ui-note">stop() without close() leaves /dev/video0 held — "camera already in use" on next launch</span>
+          </div>
+          <div class="unique-item">
+            Cooldown bug is invisible to unit tests
+            <span class="ui-note">Only appears in the interaction between detect() and main.py's loop — integration test needed</span>
+          </div>
+          <div class="unique-item">
+            No startup credential validation
+            <span class="ui-note">Bad .env not surfaced until the first real motion event fires send_alert()</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fix order -->
+  <div class="summary-box">
+    <h3>Consensus fix order</h3>
+    <ul class="fix-list">
+      <li><span class="fix-num">01</span> Verify ffmpeg installed: <code>sudo apt install ffmpeg</code> — 2 minutes, prevents silent crash on first motion event</li>
+      <li><span class="fix-num">02</span> Fix uv venv to see picamera2: <code>uv venv --system-site-packages && uv sync</code></li>
+      <li><span class="fix-num">03</span> Fix the cooldown/recording bug — split detect() from new_event_allowed() — core product correctness</li>
+      <li><span class="fix-num">04</span> Fix camera.close() to call stop() then close()</li>
+      <li><span class="fix-num">05</span> Anchor CLIPS_DIR to project root; fix .gitignore; reconcile code vs. docs (clips/ vs. 00-clips/)</li>
+      <li><span class="fix-num">06</span> Add CI workflow — same pattern as the tutorial, skip camera tests</li>
+      <li><span class="fix-num">07</span> Fix email attachment filename (os.path.basename), wire up config.FPS, clean up ruff findings</li>
+      <li><span class="fix-num">08</span> Supervised manual test on hardware — confirm clip duration matches real motion, email arrives</li>
+    </ul>
+  </div>
+
+</div>
