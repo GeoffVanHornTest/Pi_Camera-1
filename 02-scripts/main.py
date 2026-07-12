@@ -6,12 +6,11 @@
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
-import os
 import time
 
 import camera
 import config
-import drive_uploader
+import dropbox_uploader
 import motion_detector
 import storage
 import telegram_notifier
@@ -24,17 +23,17 @@ def _validate_config():
         for name, value in {
             "TELEGRAM_BOT_TOKEN": config.TELEGRAM_BOT_TOKEN,
             "TELEGRAM_CHAT_ID": config.TELEGRAM_CHAT_ID,
-            "DRIVE_FOLDER_ID": config.DRIVE_FOLDER_ID,
+            "DROPBOX_APP_KEY": config.DROPBOX_APP_KEY,
+            "DROPBOX_APP_SECRET": config.DROPBOX_APP_SECRET,
+            "DROPBOX_REFRESH_TOKEN": config.DROPBOX_REFRESH_TOKEN,
         }.items()
         if not value
     ]
-    if not os.path.exists(config.DRIVE_SERVICE_ACCOUNT_JSON):
-        missing.append("service_account.json (not found at expected path)")
     if missing:
         raise RuntimeError(
             f"Missing required config: {', '.join(missing)}\n"
-            "Add TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DRIVE_FOLDER_ID to 02-scripts/.env\n"
-            "and place service_account.json in 02-scripts/."
+            "Add TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DROPBOX_APP_KEY, "
+            "DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN to .env"
         )
 
 
@@ -80,12 +79,12 @@ def main():
             camera.stop_recording()
             currently_recording = False
             print("Motion stopped — uploading clip...")
-            url = drive_uploader.upload(filepath)
+            url = dropbox_uploader.upload(filepath)
             if url:
                 telegram_notifier.send_message(f"Clip ready: {url}")
                 print(f"Clip uploaded: {url}")
             else:
-                telegram_notifier.send_message("Clip recorded but Drive upload failed.")
+                telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
             filepath = None
 
 

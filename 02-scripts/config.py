@@ -72,12 +72,9 @@ NOTIFICATION_COOLDOWN_SEC = 60
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# --- Google Drive ---
-# DRIVE_FOLDER_ID is the ID at the end of the Drive folder URL.
-# DRIVE_SERVICE_ACCOUNT_JSON is the path to the service account key file —
-# defaults to service_account.json in the same directory as this file.
-DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID")
-DRIVE_SERVICE_ACCOUNT_JSON = os.getenv(
-    "DRIVE_SERVICE_ACCOUNT_JSON",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "service_account.json"),
-)
+# --- Dropbox ---
+# DROPBOX_APP_KEY and DROPBOX_APP_SECRET are from the Dropbox app settings page.
+# DROPBOX_REFRESH_TOKEN is obtained once via OAuth and never expires unless revoked.
+DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
+DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
+DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
