@@ -38,59 +38,78 @@ def _validate_config():
         )
 
 
+def _finish_clip(filepath):
+    """Stop recording, upload the clip, and send the Telegram link."""
+    camera.stop_recording()
+    print("Recording stopped — uploading clip in background...")
+
+    def _upload_and_notify(path):
+        url = dropbox_uploader.upload(path)
+        if url:
+            telegram_notifier.send_message(f"Clip ready: {url}")
+            print(f"Clip uploaded: {url}")
+        else:
+            telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+
+    threading.Thread(target=_upload_and_notify, args=(filepath,), daemon=True).start()
+
+
 def main():
     """Run the camera loop — detect motion, record clips, and send alerts."""
 
     _validate_config()
-    # fail fast if .env credentials are missing — better than crashing on first motion event
 
     currently_recording = False
-    # tracks whether a video clip is actively being recorded
-
     filepath = None
-    # path of the current clip — held here so the stop block can upload it
-
     last_cleanup = 0
-    # timestamp of the last disk cleanup — starts at 0 so cleanup runs on first boot
+    motion_last_seen = 0.0  # timestamp of the most recent frame with detected motion
+    recording_started = 0.0  # timestamp when the current clip began
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
     while True:
         if time.time() - last_cleanup > 86400:
-            # run cleanup once every 24 hours to prevent the clips folder filling the disk
             storage.cleanup_old_clips(days=7)
             last_cleanup = time.time()
 
         frame = camera.get_frame()
         motion, _ = motion_detector.detect(frame)
+        now = time.time()
+
+        if motion:
+            motion_last_seen = now
 
         if motion and not currently_recording and motion_detector.new_event_allowed():
-            # start a new clip only when: motion is present, not already recording,
-            # and enough time has passed since the last event (cooldown gate).
+            # start a new clip: motion present, not already recording, cooldown elapsed
             filepath = storage.get_video_path()
             camera.start_recording(filepath)
             snapshot = storage.save_snapshot(frame)
             telegram_notifier.send_photo(snapshot, caption="Motion detected!")
             currently_recording = True
+            recording_started = now
+            motion_last_seen = now
             print(f"Motion detected — recording to {filepath}")
 
-        if not motion and currently_recording:
-            time.sleep(config.POST_MOTION_BUFFER_SEC)
-            camera.stop_recording()
-            currently_recording = False
-            clip_to_upload = filepath
-            filepath = None
-            print("Motion stopped — uploading clip in background...")
+        if currently_recording:
+            time_recording = now - recording_started
+            time_since_motion = now - motion_last_seen
 
-            def _upload_and_notify(path):
-                url = dropbox_uploader.upload(path)
-                if url:
-                    telegram_notifier.send_message(f"Clip ready: {url}")
-                    print(f"Clip uploaded: {url}")
-                else:
-                    telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+            if time_recording >= config.MAX_RECORD_SEC:
+                # hard cap reached — close this clip and immediately start a new one
+                print(f"Max clip duration reached — splitting clip.")
+                clip_to_upload = filepath
+                _finish_clip(clip_to_upload)
+                filepath = storage.get_video_path()
+                camera.start_recording(filepath)
+                recording_started = now
+                motion_last_seen = now
 
-            threading.Thread(target=_upload_and_notify, args=(clip_to_upload,), daemon=True).start()
+            elif time_recording >= config.MIN_RECORD_SEC and time_since_motion >= config.POST_MOTION_BUFFER_SEC:
+                # minimum duration met and motion has been absent long enough — stop
+                clip_to_upload = filepath
+                filepath = None
+                currently_recording = False
+                _finish_clip(clip_to_upload)
 
 
 if __name__ == "__main__":

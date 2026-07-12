@@ -44,17 +44,26 @@ FPS = 30
 # MOTION_COOLDOWN_SEC is how many seconds must pass after motion is first
 # detected before the detector can fire again. Prevents one continuous
 # movement from triggering hundreds of events.
-MOTION_THRESHOLD = 500
+MOTION_THRESHOLD = 5000
 MOTION_COOLDOWN_SEC = 10
 
 # --- Recording ---
-# POST_MOTION_BUFFER_SEC keeps the camera recording for this many seconds
-# after motion stops. Without it, the clip would cut off the moment the
-# subject leaves frame.
+# MIN_RECORD_SEC is the minimum clip duration after motion is first detected.
+# Brief gaps in motion within this window are ignored — the recording keeps
+# running until both the minimum has elapsed AND motion has been absent for
+# POST_MOTION_BUFFER_SEC seconds.
+#
+# POST_MOTION_BUFFER_SEC is how long motion must be absent (after MIN_RECORD_SEC
+# has passed) before the clip is finalised. Acts as the tail of the clip.
+#
+# MAX_RECORD_SEC caps a single clip. If motion continues beyond this point
+# the clip is closed, uploaded, and a new one starts immediately.
 #
 # CLIPS_DIR is the folder where video files are saved, anchored to the
 # project root regardless of which directory the script is run from.
+MIN_RECORD_SEC = 15
 POST_MOTION_BUFFER_SEC = 5
+MAX_RECORD_SEC = 120
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
