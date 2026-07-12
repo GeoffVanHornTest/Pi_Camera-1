@@ -6,6 +6,7 @@
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
+import threading
 import time
 
 import camera
@@ -75,17 +76,21 @@ def main():
 
         if not motion and currently_recording:
             time.sleep(config.POST_MOTION_BUFFER_SEC)
-            # keep recording for a few seconds after motion stops
             camera.stop_recording()
             currently_recording = False
-            print("Motion stopped — uploading clip...")
-            url = dropbox_uploader.upload(filepath)
-            if url:
-                telegram_notifier.send_message(f"Clip ready: {url}")
-                print(f"Clip uploaded: {url}")
-            else:
-                telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+            clip_to_upload = filepath
             filepath = None
+            print("Motion stopped — uploading clip in background...")
+
+            def _upload_and_notify(path):
+                url = dropbox_uploader.upload(path)
+                if url:
+                    telegram_notifier.send_message(f"Clip ready: {url}")
+                    print(f"Clip uploaded: {url}")
+                else:
+                    telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+
+            threading.Thread(target=_upload_and_notify, args=(clip_to_upload,), daemon=True).start()
 
 
 if __name__ == "__main__":
