@@ -44,7 +44,13 @@ FPS = 30
 # MOTION_COOLDOWN_SEC is how many seconds must pass after motion is first
 # detected before the detector can fire again. Prevents one continuous
 # movement from triggering hundreds of events.
-MOTION_THRESHOLD = 5000
+# MOTION_THRESHOLD_DAY is used when average frame brightness is above BRIGHTNESS_THRESHOLD.
+# MOTION_THRESHOLD_NIGHT is used in IR/dark mode — noise floor is significantly higher
+# due to IR LED flicker and increased sensor gain at low light.
+# BRIGHTNESS_THRESHOLD is the mean pixel value (0-255) that separates day from night mode.
+MOTION_THRESHOLD_DAY = 10000
+MOTION_THRESHOLD_NIGHT = 25000
+BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
 
 # --- Recording ---
