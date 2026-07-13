@@ -25,7 +25,9 @@ def test_fps_is_positive():
 
 
 def test_motion_threshold_is_positive():
-    assert config.MOTION_THRESHOLD > 0
+    assert config.MOTION_THRESHOLD_DAY > 0
+    assert config.MOTION_THRESHOLD_NIGHT > 0
+    assert config.MOTION_THRESHOLD_NIGHT > config.MOTION_THRESHOLD_DAY
 
 
 def test_motion_cooldown_is_positive():

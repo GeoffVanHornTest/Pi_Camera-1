@@ -7,7 +7,7 @@
 | Version | Branch | Content |
 |---------|--------|---------|
 | v0.1.0 | `main` | Gmail SMTP — **released ✅** |
-| v0.2.0 | `feature/telegram-drive` | Telegram + Google Drive backend |
+| v0.2.0 | `feature/telegram-drive` | Telegram + Dropbox backend — **in progress** |
 | v0.3.0 | `feature/setup-gui` | Tkinter setup GUI + unified credential management |
 
 ---
@@ -465,6 +465,31 @@ else:
 ### Implementation order
 
 1. ~~Get Gmail path working end-to-end on real hardware~~ — done, released as v0.1.0
-2. `feature/telegram-drive` — implement Telegram + Drive backend, release as v0.2.0
+2. `feature/telegram-drive` — implement Telegram + Dropbox backend, release as v0.2.0
 3. `feature/setup-gui` — Tkinter GUI + `notifier_factory.py`, release as v0.3.0
 4. `.env` becomes CI/headless fallback only once the GUI is the standard setup path
+
+---
+
+## Motion detection tuning (in progress on feature/telegram-drive)
+
+### Day/night threshold auto-switching
+Uses mean frame brightness to select threshold at runtime:
+- `MOTION_THRESHOLD_DAY = 10000` — daylight mode
+- `MOTION_THRESHOLD_NIGHT = 25000` — IR/dark mode
+- `BRIGHTNESS_THRESHOLD = 60` — mean pixel value below this = night mode
+
+Better IR detection (E-01, future): check if R≈G≈B (channels converge in IR) rather
+than relying on brightness alone. Handles edge case where a bright grey room triggers
+night mode incorrectly.
+
+### Diagnostic snapshot validator (E-02, future — offline only)
+Optional troubleshooting tool, gated by `ENABLE_SNAPSHOT_VALIDATION = False` in config.
+When enabled, runs OpenCV HOG person detector on each snapshot and logs results to CSV:
+timestamp, contour_area, brightness, person_detected, threshold_used.
+
+- **No API key or internet required** — runs entirely on-device using OpenCV's built-in
+  pre-trained HOG + SVM pedestrian detector
+- Runs in the background upload thread, does not block the main loop
+- Purpose is calibration data collection only — not a real-time filter
+- GUI (v0.3.0) will expose the toggle for easy enable/disable
