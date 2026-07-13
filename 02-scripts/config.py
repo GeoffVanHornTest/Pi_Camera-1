@@ -48,7 +48,7 @@ FPS = 30
 # MOTION_THRESHOLD_NIGHT is used in IR/dark mode — noise floor is significantly higher
 # due to IR LED flicker and increased sensor gain at low light.
 # BRIGHTNESS_THRESHOLD is the mean pixel value (0-255) that separates day from night mode.
-MOTION_THRESHOLD_DAY = 10000
+MOTION_THRESHOLD_DAY = 7500
 MOTION_THRESHOLD_NIGHT = 25000
 BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
@@ -68,7 +68,7 @@ MOTION_COOLDOWN_SEC = 10
 # CLIPS_DIR is the folder where video files are saved, anchored to the
 # project root regardless of which directory the script is run from.
 MIN_RECORD_SEC = 15
-POST_MOTION_BUFFER_SEC = 5
+POST_MOTION_BUFFER_SEC = 20
 MAX_RECORD_SEC = 120
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")

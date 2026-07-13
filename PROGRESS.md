@@ -7,6 +7,32 @@ Use it to resume work on a new machine or after a long break.
 
 ## Session Log
 
+### 2026-07-13 — Motion threshold calibration, clip analysis tool
+
+#### Problem
+Short clips (14-15s) being generated with obvious movement visible. User sitting still at desk caused repeated premature clip stops rather than recording to the 3-minute max.
+
+#### Root cause: MOG2 background adaptation
+When a person is relatively still, MOG2 gradually absorbs them into the background model. Contour areas drop below threshold even with subject present. At MOTION_THRESHOLD_DAY=10000, gaps of 7-11 seconds were measured — well above POST_MOTION_BUFFER_SEC=5.
+
+#### Diagnostic tool created
+`02-scripts/analyze_clips.py` — runs MOG2 at four threshold levels (5k, 10k, 15k, 25k) on every clip in 00-clips/ and reports the longest no-motion gap at each level. Used to measure the real motion gap behaviour per clip without relying on guesswork.
+
+Key finding from clip data: at T=5000, a still person produces gaps up to 16.6 seconds. POST_MOTION_BUFFER_SEC=5 was far too short to handle normal desk-work stillness.
+
+#### Changes applied
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `MOTION_THRESHOLD_DAY` | 10000 | 7500 | 10k caused 7-11s detection gaps for still person; 7.5k is compromise between noise rejection and still-person sensitivity |
+| `POST_MOTION_BUFFER_SEC` | 5 | 20 | Clip data showed 16s stillness gaps; buffer must exceed the longest expected stillness period |
+
+#### Still open
+- R-06: IR false triggers at night — MOTION_THRESHOLD_NIGHT stays at 25000 pending IR noise floor diagnostic
+- E-01: Better IR mode detection via grayscale channel check
+- E-02: Optional HOG person validator for threshold calibration
+
+---
+
 ### 2026-07-11 to 2026-07-12 — v0.1.0 released, Telegram + Dropbox backend, recording logic overhaul
 
 #### Release
