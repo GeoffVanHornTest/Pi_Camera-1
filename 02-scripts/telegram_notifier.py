@@ -16,13 +16,16 @@ def send_photo(image_path, caption="Motion detected!"):
         caption: Text shown below the photo. Defaults to "Motion detected!".
     """
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
-    with open(image_path, "rb") as f:
-        requests.post(
-            url,
-            data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
-            files={"photo": f},
-            timeout=15,
-        )
+    try:
+        with open(image_path, "rb") as f:
+            requests.post(
+                url,
+                data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
+                files={"photo": f},
+                timeout=15,
+            )
+    except Exception as e:
+        print(f"[telegram] send_photo failed: {e}")
 
 
 def send_message(text):
@@ -32,8 +35,11 @@ def send_message(text):
         text: The message to send.
     """
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(
-        url,
-        data={"chat_id": config.TELEGRAM_CHAT_ID, "text": text},
-        timeout=15,
-    )
+    try:
+        requests.post(
+            url,
+            data={"chat_id": config.TELEGRAM_CHAT_ID, "text": text},
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"[telegram] send_message failed: {e}")
