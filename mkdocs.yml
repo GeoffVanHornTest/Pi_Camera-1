@@ -9,6 +9,7 @@ theme:
 nav:
   - Home: index.md
   - API Reference: api.md
+  - Analysis Scripts: analysis.md
 
 plugins:
   - search

@@ -9,8 +9,10 @@ Run from the 02-scripts directory:
     python analyze_clips.py
 """
 
+import csv
 import os
 import sys
+from datetime import datetime
 
 import cv2
 
@@ -84,21 +86,39 @@ def main():
     print(header)
     print("-" * len(header))
 
+    rows = []
     for clip in clips:
         path = os.path.join(clips_dir, clip)
         result = analyze(path)
         if result is None:
             print(f"{clip:<40}  (unreadable)")
+            rows.append({"clip": clip, "duration_sec": "unreadable",
+                         **{f"gap_T{t}": "unreadable" for t in THRESHOLDS}})
             continue
 
         duration, total_frames, fps, res = result
         gaps = "  ".join(f"{res[t]['max_gap_sec']:>9.1f}s" for t in THRESHOLDS)
         print(f"{clip:<40} {duration:>5.1f}s  {gaps}")
+        rows.append({
+            "clip": clip,
+            "duration_sec": round(duration, 1),
+            **{f"gap_T{t}": round(res[t]["max_gap_sec"], 1) for t in THRESHOLDS},
+        })
 
     print()
     print("'gap' = longest continuous period with no motion above that threshold.")
     print(f"Current config: DAY={config.MOTION_THRESHOLD_DAY}, NIGHT={config.MOTION_THRESHOLD_NIGHT}")
     print(f"POST_MOTION_BUFFER_SEC={config.POST_MOTION_BUFFER_SEC}, MIN_RECORD_SEC={config.MIN_RECORD_SEC}")
+
+    # write CSV
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    csv_path = os.path.join(clips_dir, f"analysis_{ts}.csv")
+    fieldnames = ["clip", "duration_sec"] + [f"gap_T{t}" for t in THRESHOLDS]
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"\nCSV saved: {csv_path}")
 
 
 if __name__ == "__main__":
