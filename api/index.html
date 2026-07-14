@@ -981,9 +981,7 @@ the camera is released cleanly rather than dying mid-frame.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/camera.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">79</span>
-<span class="normal">80</span>
-<span class="normal">81</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">81</span>
 <span class="normal">82</span>
 <span class="normal">83</span>
 <span class="normal">84</span>
@@ -991,7 +989,9 @@ the camera is released cleanly rather than dying mid-frame.</p>
 <span class="normal">86</span>
 <span class="normal">87</span>
 <span class="normal">88</span>
-<span class="normal">89</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">():</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Shut down the camera and release the hardware.</span>
 
 <span class="sd">    Call this on exit (e.g. after KeyboardInterrupt) to ensure</span>
@@ -1198,15 +1198,19 @@ still be used to capture frames for motion detection.</p>
 <span class="normal">73</span>
 <span class="normal">74</span>
 <span class="normal">75</span>
-<span class="normal">76</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">stop_recording</span><span class="p">():</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">stop_recording</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Stop the current video recording and finalise the output file.</span>
 
 <span class="sd">    The camera continues running after this call — get_frame() can</span>
 <span class="sd">    still be used to capture frames for motion detection.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># tells picamera2 to finish writing the video file and shut down the encoder.</span>
-    <span class="c1"># The camera itself keeps running, so we can keep calling get_frame() after a clip ends.</span>
+    <span class="c1"># picamera2&#39;s stop_recording() internally calls stop() on the camera,</span>
+    <span class="c1"># which halts frame delivery and causes capture_array() to block.</span>
+    <span class="c1"># Calling start() immediately after restores the preview stream.</span>
     <span class="n">_camera</span><span class="o">.</span><span class="n">stop_recording</span><span class="p">()</span>
+    <span class="n">_camera</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1360,7 +1364,8 @@ gate whether a new clip or notification should start.</p>
 <span class="normal">52</span>
 <span class="normal">53</span>
 <span class="normal">54</span>
-<span class="normal">55</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">):</span>
+<span class="normal">55</span>
+<span class="normal">56</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Analyse a frame for motion — raw per-frame signal, no cooldown.</span>
 
 <span class="sd">    Compares the frame against a background model using MOG2. Returns</span>
@@ -1384,12 +1389,13 @@ gate whether a new clip or notification should start.</p>
     <span class="c1"># moving object. RETR_EXTERNAL ignores holes inside blobs, CHAIN_APPROX_SIMPLE</span>
     <span class="c1"># stores only corner points rather than every pixel on the edge.</span>
 
-    <span class="n">motion_detected</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-        <span class="n">cv2</span><span class="o">.</span><span class="n">contourArea</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">MOTION_THRESHOLD</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">contours</span>
+    <span class="n">brightness</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">frame</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">threshold</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">MOTION_THRESHOLD_DAY</span>
+        <span class="k">if</span> <span class="n">brightness</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">BRIGHTNESS_THRESHOLD</span>
+        <span class="k">else</span> <span class="n">config</span><span class="o">.</span><span class="n">MOTION_THRESHOLD_NIGHT</span>
     <span class="p">)</span>
-    <span class="c1"># if any single contour exceeds the threshold it&#39;s real motion — speckles</span>
-    <span class="c1"># and artifacts produce tiny contours (10-20 px), a person produces thousands</span>
-
+    <span class="n">motion_detected</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">cv2</span><span class="o">.</span><span class="n">contourArea</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">contours</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">motion_detected</span><span class="p">,</span> <span class="n">frame</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -1437,8 +1443,7 @@ signal while only new clips and alerts are cooldown-gated.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/motion_detector.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">58</span>
-<span class="normal">59</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">59</span>
 <span class="normal">60</span>
 <span class="normal">61</span>
 <span class="normal">62</span>
@@ -1451,7 +1456,8 @@ signal while only new clips and alerts are cooldown-gated.</p>
 <span class="normal">69</span>
 <span class="normal">70</span>
 <span class="normal">71</span>
-<span class="normal">72</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">new_event_allowed</span><span class="p">():</span>
+<span class="normal">72</span>
+<span class="normal">73</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">new_event_allowed</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True if enough time has passed to treat this as a new motion event.</span>
 
 <span class="sd">    Separate from detect() so the recording loop can key off the raw motion</span>
@@ -2094,97 +2100,117 @@ already exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">36</span>
-<span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span>
-<span class="normal">47</span>
-<span class="normal">48</span>
-<span class="normal">49</span>
-<span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span>
-<span class="normal">53</span>
-<span class="normal">54</span>
-<span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
-<span class="normal">61</span>
-<span class="normal">62</span>
-<span class="normal">63</span>
-<span class="normal">64</span>
-<span class="normal">65</span>
-<span class="normal">66</span>
-<span class="normal">67</span>
-<span class="normal">68</span>
-<span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
-<span class="normal">72</span>
-<span class="normal">73</span>
-<span class="normal">74</span>
-<span class="normal">75</span>
-<span class="normal">76</span>
-<span class="normal">77</span>
-<span class="normal">78</span>
-<span class="normal">79</span>
-<span class="normal">80</span>
-<span class="normal">81</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 57</span>
+<span class="normal"> 58</span>
+<span class="normal"> 59</span>
+<span class="normal"> 60</span>
+<span class="normal"> 61</span>
+<span class="normal"> 62</span>
+<span class="normal"> 63</span>
+<span class="normal"> 64</span>
+<span class="normal"> 65</span>
+<span class="normal"> 66</span>
+<span class="normal"> 67</span>
+<span class="normal"> 68</span>
+<span class="normal"> 69</span>
+<span class="normal"> 70</span>
+<span class="normal"> 71</span>
+<span class="normal"> 72</span>
+<span class="normal"> 73</span>
+<span class="normal"> 74</span>
+<span class="normal"> 75</span>
+<span class="normal"> 76</span>
+<span class="normal"> 77</span>
+<span class="normal"> 78</span>
+<span class="normal"> 79</span>
+<span class="normal"> 80</span>
+<span class="normal"> 81</span>
+<span class="normal"> 82</span>
+<span class="normal"> 83</span>
+<span class="normal"> 84</span>
+<span class="normal"> 85</span>
+<span class="normal"> 86</span>
+<span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the camera loop — detect motion, record clips, and send alerts.&quot;&quot;&quot;</span>
 
     <span class="n">_validate_config</span><span class="p">()</span>
-    <span class="c1"># fail fast if .env credentials are missing — better than crashing on first motion event</span>
 
     <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="c1"># tracks whether a video clip is actively being recorded</span>
-
+    <span class="n">filepath</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">last_cleanup</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="c1"># timestamp of the last disk cleanup — starts at 0 so cleanup runs on first boot</span>
+    <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># timestamp of the most recent frame with detected motion</span>
+    <span class="n">recording_started</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># timestamp when the current clip began</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;PI Camera started. Press Ctrl+C to stop.&quot;</span><span class="p">)</span>
 
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">last_cleanup</span> <span class="o">&gt;</span> <span class="mi">86400</span><span class="p">:</span>
-            <span class="c1"># run cleanup once every 24 hours to prevent the clips folder filling the disk</span>
             <span class="n">storage</span><span class="o">.</span><span class="n">cleanup_old_clips</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
             <span class="n">last_cleanup</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-        <span class="c1"># runs forever until the user hits Ctrl+C — the camera is always watching</span>
 
         <span class="n">frame</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">get_frame</span><span class="p">()</span>
-        <span class="c1"># grab the latest frame from the live feed — this is a NumPy array in BGR format</span>
-
         <span class="n">motion</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-        <span class="c1"># analyse the frame for motion — returns (bool, frame). We discard the frame with _</span>
-        <span class="c1"># because we already have it, and we don&#39;t need the annotated version in main</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">motion</span><span class="p">:</span>
+            <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
 
         <span class="k">if</span> <span class="n">motion</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">currently_recording</span> <span class="ow">and</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">new_event_allowed</span><span class="p">():</span>
-            <span class="c1"># start a new clip only when: motion is present, not already recording,</span>
-            <span class="c1"># and enough time has passed since the last event (cooldown gate).</span>
-            <span class="c1"># detect() is the raw per-frame signal — new_event_allowed() is the gate.</span>
+            <span class="c1"># start a new clip: motion present, not already recording, cooldown elapsed</span>
             <span class="n">filepath</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">get_video_path</span><span class="p">()</span>
             <span class="n">camera</span><span class="o">.</span><span class="n">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
             <span class="n">snapshot</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">save_snapshot</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-            <span class="n">notifier</span><span class="o">.</span><span class="n">send_alert</span><span class="p">(</span><span class="n">snapshot</span><span class="p">)</span>
+            <span class="n">telegram_notifier</span><span class="o">.</span><span class="n">send_photo</span><span class="p">(</span><span class="n">snapshot</span><span class="p">,</span> <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Motion detected!&quot;</span><span class="p">)</span>
             <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">recording_started</span> <span class="o">=</span> <span class="n">now</span>
+            <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Motion detected — recording to </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">motion</span> <span class="ow">and</span> <span class="n">currently_recording</span><span class="p">:</span>
-            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">POST_MOTION_BUFFER_SEC</span><span class="p">)</span>
-            <span class="c1"># keep recording for a few seconds after motion stops — without this the clip</span>
-            <span class="c1"># would cut off the moment the subject leaves frame</span>
-            <span class="n">camera</span><span class="o">.</span><span class="n">stop_recording</span><span class="p">()</span>
-            <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Motion stopped — recording saved.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">currently_recording</span><span class="p">:</span>
+            <span class="n">time_recording</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">recording_started</span>
+            <span class="n">time_since_motion</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">motion_last_seen</span>
+
+            <span class="k">if</span> <span class="n">time_recording</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">MAX_RECORD_SEC</span><span class="p">:</span>
+                <span class="c1"># hard cap reached — close this clip and immediately start a new one</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Max clip duration reached — splitting clip.&quot;</span><span class="p">)</span>
+                <span class="n">clip_to_upload</span> <span class="o">=</span> <span class="n">filepath</span>
+                <span class="n">_finish_clip</span><span class="p">(</span><span class="n">clip_to_upload</span><span class="p">)</span>
+                <span class="n">filepath</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">get_video_path</span><span class="p">()</span>
+                <span class="n">camera</span><span class="o">.</span><span class="n">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+                <span class="n">recording_started</span> <span class="o">=</span> <span class="n">now</span>
+                <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
+
+            <span class="k">elif</span> <span class="n">time_recording</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">MIN_RECORD_SEC</span> <span class="ow">and</span> <span class="n">time_since_motion</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">POST_MOTION_BUFFER_SEC</span><span class="p">:</span>
+                <span class="c1"># minimum duration met and motion has been absent long enough — stop</span>
+                <span class="n">clip_to_upload</span> <span class="o">=</span> <span class="n">filepath</span>
+                <span class="n">filepath</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">_finish_clip</span><span class="p">(</span><span class="n">clip_to_upload</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
