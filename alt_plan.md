@@ -493,3 +493,102 @@ timestamp, contour_area, brightness, person_detected, threshold_used.
 - Runs in the background upload thread, does not block the main loop
 - Purpose is calibration data collection only — not a real-time filter
 - GUI (v0.3.0) will expose the toggle for easy enable/disable
+
+---
+
+## Phase 3 — Noise suppression and body identification algorithm (v0.4.0)
+
+### Motivation
+
+The 8-script diagnostic suite (added 2026-07-14) confirmed that the current MOG2
+pixel-count trigger produces significant false positives from:
+- Wall reflections (light sweeping across surfaces)
+- Small objects moving in the frame (plants, outdoor objects through window)
+- MOG2 background drift under gradual lighting changes (morning light rise)
+
+238 confirmed false-trigger clips were recorded in a single 90-minute daytime session
+after camera repositioning. The scoring system misclassified 235 of 238 as PERSON or
+LIKELY_PERSON. A more robust detection algorithm is needed before the system is
+reliable enough to act on without manual review.
+
+### Data collection plan
+
+Five ground-truth datasets, collected before algorithm development begins:
+
+| # | Position | Time of day | Status | Purpose |
+|---|----------|------------|--------|---------|
+| 1 | Original | Day | Done — 238 clips (2026-07-14) | Empty-room day baseline, original position |
+| 2 | New (repositioned) | Day | Done — 18 clips (2026-07-15) | Empty-room day baseline, new position |
+| 3 | New | Night | Planned | Empty-room night baseline, new position |
+| 4 | Original (approx) | Night | Planned | Empty-room night baseline, original position |
+| 5 | TBD | Day (supervised) | Planned | Labelled person clips — short session, operator present |
+
+Dataset 5 is a dedicated supervised run: the operator is physically present and can
+label clips in real time as valid or false. This gives a clean positive class for
+algorithm training without ambiguity.
+
+### Pre-algorithm review step
+
+Before writing any code, review the heatmap PNGs from datasets 1 and 2 to manually
+identify and annotate noise zones:
+- Which frame regions correspond to wall reflections
+- Which correspond to the outdoor object visible through the window
+- Where confirmed person motion appears (from the 2026-07-15 11:01 staircase clip)
+
+This annotation is the ground truth that calibrates the algorithm. It cannot be
+derived automatically.
+
+### Algorithm approach (proposed)
+
+A layered filter pipeline in `motion_detector.py`, each layer independently rejectable
+via config flags so they can be toggled during calibration:
+
+**Layer 1 — Temporal filter (issue #26)**
+Require motion in N consecutive frames before triggering. Rejects single-frame
+flicker from reflections and IR artefacts.
+```python
+MOTION_CONSECUTIVE_FRAMES = 3  # ~200ms at 15fps
+```
+
+**Layer 2 — Spatial filter (issue #25)**
+Require the largest connected blob to exceed a minimum area. Rejects spatially
+dispersed noise (many tiny specks) that passes the pixel-count threshold.
+```python
+MIN_BLOB_AREA = TBD  # calibrate from dataset 1 vs dataset 5
+```
+
+**Layer 3 — Region-of-interest mask (new)**
+Allow motion detection only within a configured polygon mask. Zones identified
+during heatmap review (window, known reflection surfaces) can be excluded entirely.
+Mask defined in config as a list of (x, y) vertices, applied to the MOG2 foreground
+mask before any counting.
+```python
+ROI_MASK_VERTICES = []  # empty = full frame; populated after heatmap review
+```
+
+**Layer 4 — MOG2 learning rate (issue #22 fix F4)**
+Increase `learningRate` from default (~0.002) to `0.02` so the background model
+adapts faster to gradual lighting changes. Addresses Type B false triggers (MOG2
+drift under morning light rise).
+```python
+MOGS_LEARNING_RATE = 0.02
+```
+
+### Calibration workflow
+
+1. Collect all 5 datasets
+2. Review heatmaps — annotate noise zones, define ROI mask vertices
+3. Run Layer 1 + Layer 2 against datasets 1–4 (confirmed empty) — tune thresholds
+   until false trigger rate drops below a target (e.g. <5 clips per hour)
+4. Validate against dataset 5 (confirmed persons) — verify no true positives are lost
+5. Adjust thresholds at the boundary until both conditions hold
+6. Commit calibrated values to `config.py`, document in `CHANGELOG.md`
+
+### What this does NOT do
+
+This is a signal-filtering approach, not a classifier. It does not attempt to
+identify whether the moving object is a human — it only rejects motion patterns
+that are statistically unlikely to be human. A true person classifier (HOG, YOLO,
+etc.) is a possible v0.5.0 enhancement but requires significantly more compute and
+a labelled training set. E-02 (HOG snapshot validator) in the existing plan is the
+stepping stone toward that.
