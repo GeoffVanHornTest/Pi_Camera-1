@@ -47,7 +47,10 @@ def main():
     all_clips = sorted(set(list(gaps.keys()) + list(refs.keys())))
 
     rows = []
-    print(f"\n{'Clip':<42} {'Dur':>6}  {'gap_T5k':>7}  {'gap_ratio':>9}  {'reflect%':>8}  {'verdict':<12}  {'combined'}")
+    print(
+        f"\n{'Clip':<42} {'Dur':>6}  {'gap_T5k':>7}  {'gap_ratio':>9}"
+        f"  {'reflect%':>8}  {'verdict':<12}  {'combined'}"
+    )
     print("-" * 105)
 
     for clip in all_clips:
@@ -94,7 +97,10 @@ def main():
             "combined_verdict": combined,
         })
 
-        print(f"{clip:<42} {duration:>5.1f}s  {gap_t5k:>6.1f}s  {gap_ratio:>9.3f}  {reflect_pct:>7.1f}%  {verdict:<12}  {combined}")
+        print(
+            f"{clip:<42} {duration:>5.1f}s  {gap_t5k:>6.1f}s"
+            f"  {gap_ratio:>9.3f}  {reflect_pct:>7.1f}%  {verdict:<12}  {combined}"
+        )
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(config.CLIPS_DIR, f"combined_analysis_{ts}.csv")

@@ -118,7 +118,7 @@ def analyze(filepath):
             if score > 0:
                 reflection_flags.append((frame_idx / fps, score, flags))
         else:
-            brightness = float(cv2.mean(frame)[0])
+            _brightness = float(cv2.mean(frame)[0])
 
         prev_brightness = float(cv2.mean(frame)[0])
         frame_idx += 1
@@ -163,8 +163,11 @@ def main():
         result = analyze(path)
         if result is None:
             print(f"{clip:<42}  (unreadable)")
-            rows.append({"clip": clip, "duration_sec": "unreadable",
-                         "motion_frames": "", "reflection_pct": "", "verdict": "unreadable", "top_flags": ""})
+            rows.append({
+                "clip": clip, "duration_sec": "unreadable",
+                "motion_frames": "", "reflection_pct": "",
+                "verdict": "unreadable", "top_flags": "",
+            })
             continue
 
         duration, motion_frames, reflection_flags, n_frames = result
@@ -186,7 +189,10 @@ def main():
             flag_summary = ", ".join(f"{k}×{v}" for k, v in
                                      sorted(types.items(), key=lambda x: -x[1]))
 
-        print(f"{clip:<42} {duration:>5.1f}s  {motion_frames:>6}fr  {r_pct:>7.1f}%  {v:<12}  {flag_summary}")
+        print(
+            f"{clip:<42} {duration:>5.1f}s  {motion_frames:>6}fr"
+            f"  {r_pct:>7.1f}%  {v:<12}  {flag_summary}"
+        )
         rows.append({
             "clip": clip,
             "duration_sec": round(duration, 1),
@@ -197,7 +203,10 @@ def main():
         })
 
     print()
-    print("Scoring: 1pt each — brightness spike >15%, bright motion region >1.25x bg, centroid in top 45%, solidity <0.45")
+    print(
+        "Scoring: 1pt each — brightness spike >15%, bright motion region"
+        " >1.25x bg, centroid in top 45%, solidity <0.45"
+    )
     print("REFLECTION = >50% motion frames scored + >30% scored ≥2 indicators")
     print("AMBIGUOUS  = >25% motion frames scored or any 2-indicator frames")
     print("PERSON     = <25% motion frames scored, no 2-indicator frames")

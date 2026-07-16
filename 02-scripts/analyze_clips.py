@@ -107,8 +107,13 @@ def main():
 
     print()
     print("'gap' = longest continuous period with no motion above that threshold.")
-    print(f"Current config: DAY={config.MOTION_THRESHOLD_DAY}, NIGHT={config.MOTION_THRESHOLD_NIGHT}")
-    print(f"POST_MOTION_BUFFER_SEC={config.POST_MOTION_BUFFER_SEC}, MIN_RECORD_SEC={config.MIN_RECORD_SEC}")
+    print(
+        f"Current config: DAY={config.MOTION_THRESHOLD_DAY}, NIGHT={config.MOTION_THRESHOLD_NIGHT}"
+    )
+    print(
+        f"POST_MOTION_BUFFER_SEC={config.POST_MOTION_BUFFER_SEC},"
+        f" MIN_RECORD_SEC={config.MIN_RECORD_SEC}"
+    )
 
     # write CSV
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

@@ -20,7 +20,6 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
-
 import cv2
 
 
@@ -76,7 +75,10 @@ def main():
         print("No clips found.")
         return
 
-    print(f"\n{'Clip':<42} {'Dur':>6}  {'Class':<8}  {'MB':>5}  {'MB/s':>5}  {'Hour':>4}  time_of_day")
+    print(
+        f"\n{'Clip':<42} {'Dur':>6}  {'Class':<8}  {'MB':>5}  {'MB/s':>5}"
+        f"  {'Hour':>4}  time_of_day"
+    )
     print("-" * 90)
 
     rows = []

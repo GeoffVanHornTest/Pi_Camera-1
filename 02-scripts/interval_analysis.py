@@ -57,7 +57,6 @@ def main():
     entries.sort(key=lambda x: x[1])
 
     # assign clusters
-    cluster_id = 0
     clusters = []
     current_cluster = [entries[0]]
 
@@ -76,7 +75,10 @@ def main():
         for clip, _ in cluster:
             clip_cluster[clip] = (cid + 1, len(cluster))
 
-    print(f"\n{'Clip':<42} {'prev_gap':>8}  {'next_gap':>8}  {'cluster':>7}  {'size':>4}  in_cluster")
+    print(
+        f"\n{'Clip':<42} {'prev_gap':>8}  {'next_gap':>8}"
+        f"  {'cluster':>7}  {'size':>4}  in_cluster"
+    )
     print("-" * 88)
 
     rows = []
@@ -89,7 +91,10 @@ def main():
         prev_str = f"{prev_gap:>7.0f}s" if prev_gap is not None else "    N/A"
         next_str = f"{next_gap:>7.0f}s" if next_gap is not None else "    N/A"
 
-        print(f"{clip:<42} {prev_str}  {next_str}  C{cid:>6}  {csize:>4}  {'YES' if in_cluster else 'no'}")
+        print(
+            f"{clip:<42} {prev_str}  {next_str}"
+            f"  C{cid:>6}  {csize:>4}  {'YES' if in_cluster else 'no'}"
+        )
 
         rows.append({
             "clip": clip,

@@ -96,7 +96,7 @@ def main():
 
             if time_recording >= config.MAX_RECORD_SEC:
                 # hard cap reached — close this clip and immediately start a new one
-                print(f"Max clip duration reached — splitting clip.")
+                print("Max clip duration reached — splitting clip.")
                 clip_to_upload = filepath
                 _finish_clip(clip_to_upload)
                 filepath = storage.get_video_path()
@@ -104,7 +104,8 @@ def main():
                 recording_started = now
                 motion_last_seen = now
 
-            elif time_recording >= config.MIN_RECORD_SEC and time_since_motion >= config.POST_MOTION_BUFFER_SEC:
+            elif (time_recording >= config.MIN_RECORD_SEC
+                  and time_since_motion >= config.POST_MOTION_BUFFER_SEC):
                 # minimum duration met and motion has been absent long enough — stop
                 clip_to_upload = filepath
                 filepath = None

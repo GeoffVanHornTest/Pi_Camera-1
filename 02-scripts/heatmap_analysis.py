@@ -34,8 +34,8 @@ def analyze(filepath):
 
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    _fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    _n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     bg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
     heatmap = np.zeros((h, w), dtype=np.float32)

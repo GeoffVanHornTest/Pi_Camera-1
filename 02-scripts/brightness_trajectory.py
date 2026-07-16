@@ -106,7 +106,10 @@ def main():
         print("No clips found.")
         return
 
-    print(f"\n{'Clip':<42} {'init':>5}  {'max':>5}  {'spike%':>7}  {'@sec':>4}  {'variation':>9}  class")
+    print(
+        f"\n{'Clip':<42} {'init':>5}  {'max':>5}  {'spike%':>7}"
+        f"  {'@sec':>4}  {'variation':>9}  class"
+    )
     print("-" * 90)
 
     rows = []
