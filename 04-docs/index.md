@@ -4,10 +4,11 @@ A Raspberry Pi night vision motion camera with automated Gmail alerts.
 
 ## What it does
 
-- Detects motion using OpenCV background subtraction
+- Detects motion using OpenCV MOG2 background subtraction with day/night threshold switching
 - Captures a snapshot when motion is detected
-- Sends an email alert with the snapshot attached via Gmail SMTP
+- Sends the snapshot instantly to a **Telegram** chat via Bot API
 - Records a video clip of the motion event
+- Uploads the finished clip to **Dropbox** and sends the share link via Telegram
 
 ## Hardware
 

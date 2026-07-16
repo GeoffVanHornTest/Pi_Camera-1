@@ -5,7 +5,78 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
+## Current state (2026-07-16)
+
+**Branch:** `feature/telegram-drive` — 12 commits ahead of `main`, not yet merged.
+
+**Notification backend:** Telegram + Dropbox (Gmail SMTP replaced in v0.2.0 work).
+`notifier.py` (Gmail) still exists but is not called from `main.py`.
+
+**Tests:** 38 passing. Covers `config`, `storage`, `motion_detector`, `notifier`,
+`telegram_notifier`, `dropbox_uploader`. `camera.py` and `main.py` excluded (hardware).
+
+**Systemd service:** `pi-camera.service` is **disabled** during calibration.
+`ExecStart` commented out in `/etc/systemd/system/pi-camera.service`.
+Re-enable after algorithm is finalised (see Hardware Setup Checklist).
+
+**Open issues:** #19 (night threshold), #22 (false trigger investigation), #23 (timing
+bounds), #25 (contour area filter), #26 (consecutive-frame filter), #27 (pre-record
+buffer), #28 (data collection + algorithm plan).
+
+**Data collection in progress (issue #28):**
+
+| # | Position | Lighting | Status |
+|---|----------|----------|--------|
+| 1 | Original | Day | Done — 238 clips, 2026-07-14 |
+| 2 | New (repositioned) | Day | Done — 18 clips, 2026-07-15 |
+| 3 | New | Night | Done — 1 clip (startup trigger only), 2026-07-16 |
+| 4 | Original | Night | Planned — facing open window, car lights expected |
+| 5 | TBD | Day (supervised) | Planned — operator present, labelled in real time |
+
+---
+
 ## Session Log
+
+### 2026-07-14 to 2026-07-16 — False trigger investigation and data collection
+
+#### 8-script diagnostic analysis suite (issue #22)
+
+Added to `02-scripts/`:
+- `analyze_clips.py` — MOG2 gap analysis at 4 thresholds; output `analysis_*.csv`
+- `analyze_reflections.py` — 4-indicator reflection scoring; output `reflection_analysis_*.csv`
+- `combine_analysis.py` — joins gap + reflection CSVs; output `combined_analysis_*.csv`
+- `heatmap_analysis.py` — spatial heatmap, `wall_zone_pct` (top 40% of frame); output `heatmap_analysis_*.csv`
+- `brightness_trajectory.py` — per-second brightness, SPIKE_EARLY/SPIKE_LATE/SUSTAINED/FLAT; output `brightness_trajectory_*.csv`
+- `duration_stats.py` — OpenCV frame_count/fps duration, `mb_per_sec` complexity proxy; output `duration_stats_*.csv`
+- `interval_analysis.py` — timestamp parsing, cluster assignment (clips within 120s); output `interval_analysis_*.csv`
+- `cross_analysis.py` — aggregates all CSVs, scores 0–9, assigns PERSON/LIKELY_PERSON/LIKELY_FALSE/FALSE_TRIGGER verdict
+
+Run with `uv run python` (not bare `python` — cv2 lives in the uv venv).
+
+#### Key findings from 2026-07-14 daytime session (238 clips, confirmed empty room)
+
+- Scoring system misclassified 235/238 clips as PERSON or LIKELY_PERSON
+- Average gap_ratio = 0.96 (room almost always empty during clips)
+- `wall_zone_pct > 60%` threshold never fired — needs to drop to ~42% (Fix F3)
+- `in_cluster` fired on all 238 clips (useless when person is active all session)
+- Two false trigger types identified:
+  - **Type A** — brief empty-room trigger, gap_ratio >0.85
+  - **Type B** — MOG2 background drift under rising morning light, gap_ratio 0.27–0.44
+- Four scoring fixes derived (F1–F4) — pending implementation in `cross_analysis.py`
+
+#### Telegram ReadTimeout fix (issue #24, closed 2026-07-14)
+
+`telegram_notifier.send_photo()` had no exception handling. A network timeout killed
+the entire recording process mid-session (observed: 2 clips recorded, then crash).
+Both `send_photo()` and `send_message()` now wrap `requests.post` in `try/except`.
+
+#### Systemd service conflict
+
+`pi-camera.service` with `Restart=always` was restarting the camera independently of
+the tmux test sessions, causing two instances of `main.py` to compete for the camera.
+Service now disabled and `ExecStart` commented out for the calibration period.
+
+---
 
 ### 2026-07-13 — Motion threshold calibration, clip analysis tool
 
@@ -543,8 +614,8 @@ Loop now calls `motion_detector.new_event_allowed()` to gate new event starts.
 
 Unit tests live in `03-tests/` — **38 tests, all passing**.
 
-Coverage: `config.py`, `storage.py`, `motion_detector.py`, `notifier.py`,
-`telegram_notifier.py`, `dropbox_uploader.py`.
+Coverage: `config.py`, `storage.py`, `motion_detector.py`, `telegram_notifier.py`,
+`dropbox_uploader.py`. `notifier.py` (Gmail, dead code) also has 3 tests retained.
 `camera.py` and `main.py` are not unit-tested (depend on live `picamera2` hardware).
 
 Run the suite:
@@ -593,31 +664,20 @@ Note: the CI environment does not have `picamera2`; all tests mock out hardware 
 
 ## Systemd Service
 
-`pi-camera.service` enables auto-start on boot and automatic restart on crash:
+`pi-camera.service` at `/etc/systemd/system/pi-camera.service` enables auto-start
+on boot and automatic restart on crash.
 
-```ini
-[Unit]
-Description=PI Camera motion detection
-After=network.target
+**Current status: DISABLED during calibration phase.**
+`ExecStart` and `Restart=always` are commented out to prevent the service from
+competing with manual tmux test sessions. Re-enable after the algorithm is finalised:
 
-[Service]
-ExecStart=/home/pi/Desktop/PI_Camera/.venv/bin/python /home/pi/Desktop/PI_Camera/02-scripts/main.py
-WorkingDirectory=/home/pi/Desktop/PI_Camera/02-scripts
-Restart=always
-RestartSec=5
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-```
-
-To install:
 ```bash
-sudo cp /home/pi/Desktop/PI_Camera/pi-camera.service /etc/systemd/system/
+sudo nano /etc/systemd/system/pi-camera.service
+# uncomment ExecStart and Restart=always, remove the ExecStart=/bin/true line
 sudo systemctl daemon-reload
-sudo systemctl enable pi-camera
-sudo systemctl start pi-camera
-sudo systemctl status pi-camera
+sudo systemctl enable pi-camera.service
+sudo systemctl start pi-camera.service
+sudo systemctl status pi-camera.service
 ```
 
 ---
@@ -648,6 +708,6 @@ side-by-side comparison of the three independent analysis plans.
 - [ ] Install ffmpeg: `sudo apt install ffmpeg`
 - [x] Create venv with system-site-packages: `uv venv --system-site-packages`
 - [x] Install Python deps: `uv sync --extra dev`
-- [x] Fill in `02-scripts/.env` with Gmail credentials
-- [ ] Supervised end-to-end test: run `main.py`, walk in front of camera, verify clip in `00-clips/` and email received
-- [ ] Install and enable systemd service (see Systemd Service section above)
+- [x] Fill in `02-scripts/.env` with Telegram and Dropbox credentials
+- [ ] Supervised end-to-end test: run `main.py`, walk in front of camera, verify clip in `00-clips/`, Telegram snapshot received, Dropbox link received
+- [ ] Re-enable systemd service after calibration complete (see Systemd Service section above)
