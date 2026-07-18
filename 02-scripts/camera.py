@@ -1,9 +1,11 @@
 # camera.py
 
+import subprocess
+
 import config
 from picamera2 import Picamera2
 from picamera2.encoders import H264Encoder
-from picamera2.outputs import CircularOutput, FfmpegOutput
+from picamera2.outputs import CircularOutput
 
 _camera = Picamera2()
 _camera.configure(
@@ -21,6 +23,10 @@ _camera.start()
 _encoder = H264Encoder()
 _circular = CircularOutput(buffersize=int(config.PRE_ROLL_SEC * 10_000_000 / 8))
 _camera.start_recording(_encoder, _circular)
+
+# CircularOutput.fileoutput requires io.BufferedIOBase, not FfmpegOutput.
+# We pipe the raw H264 stream into an ffmpeg subprocess for MP4 muxing.
+_proc = None
 
 
 def get_frame():
@@ -42,7 +48,22 @@ def start_recording(filepath):
     Args:
         filepath: Full path to the output .mp4 file.
     """
-    _circular.fileoutput = FfmpegOutput(filepath)
+    global _proc
+    _proc = subprocess.Popen(
+        [
+            "ffmpeg", "-y",
+            "-f", "h264",
+            "-framerate", str(config.FPS),
+            "-i", "pipe:0",
+            "-c:v", "copy",
+            filepath,
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # proc.stdin is io.BufferedWriter (subclass of io.BufferedIOBase) — satisfies picamera2
+    _circular.fileoutput = _proc.stdin
     _circular.start()
 
 
@@ -53,7 +74,12 @@ def stop_recording():
     call will again include PRE_ROLL_SEC seconds of pre-motion footage.
     No camera restart needed between clips.
     """
+    global _proc
     _circular.stop()
+    if _proc is not None:
+        _proc.stdin.close()  # send EOF so ffmpeg finalises the MP4 container
+        _proc.wait()
+        _proc = None
     _circular.fileoutput = None
 
 
