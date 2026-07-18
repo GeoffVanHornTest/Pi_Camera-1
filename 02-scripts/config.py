@@ -76,8 +76,15 @@ CENTROID_HISTORY_LEN = 10
 # the start of a motion event is captured even though recording begins after
 # the trigger. The circular output keeps this much H264 data in memory at all
 # times; when a clip starts, the buffer is flushed to the file first.
-# Estimated at ~10 Mbps (H264Encoder default for 1080p).
+#
+# VIDEO_BITRATE_BPS is the H264 encoder target bitrate in bits-per-second.
+# This MUST be set explicitly so the CircularOutput buffer size calculation
+# below is correct. If H264Encoder() is created with no bitrate argument
+# picamera2 uses a much lower default (~1 Mbps), causing the circular buffer
+# to hold 5× more footage than intended (e.g. 50s of pre-roll instead of 5s).
+# 4 Mbps gives good detail at 1080p while keeping file sizes reasonable.
 PRE_ROLL_SEC = 5
+VIDEO_BITRATE_BPS = 4_000_000
 
 # --- Recording ---
 # MIN_RECORD_SEC is the minimum clip duration after motion is first detected.

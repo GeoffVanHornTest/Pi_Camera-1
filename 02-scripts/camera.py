@@ -19,9 +19,11 @@ _camera.start()
 # The encoder and circular buffer run continuously from startup.
 # CircularOutput keeps the last PRE_ROLL_SEC of compressed video in memory
 # so that every clip automatically includes footage from before the trigger.
-# Buffer size = PRE_ROLL_SEC * H264Encoder default bitrate (~10 Mbps).
-_encoder = H264Encoder()
-_circular = CircularOutput(buffersize=int(config.PRE_ROLL_SEC * 10_000_000 / 8))
+# Bitrate must be set explicitly so the buffer size calculation is correct;
+# leaving H264Encoder() with no argument uses picamera2's ~1 Mbps default,
+# which would make the buffer hold ~5× more data than intended.
+_encoder = H264Encoder(bitrate=config.VIDEO_BITRATE_BPS)
+_circular = CircularOutput(buffersize=int(config.PRE_ROLL_SEC * config.VIDEO_BITRATE_BPS / 8))
 _camera.start_recording(_encoder, _circular)
 
 # CircularOutput.fileoutput requires io.BufferedIOBase, not FfmpegOutput.
@@ -78,7 +80,12 @@ def stop_recording():
     _circular.stop()
     if _proc is not None:
         _proc.stdin.close()  # send EOF so ffmpeg finalises the MP4 container
-        _proc.wait()
+        try:
+            _proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            print("WARNING: ffmpeg did not exit in 15s — killing process")
+            _proc.kill()
+            _proc.wait()
         _proc = None
     _circular.fileoutput = None
 
