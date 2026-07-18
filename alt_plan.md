@@ -4,11 +4,13 @@
 
 ## Release roadmap
 
-| Version | Branch | Content |
-|---------|--------|---------|
-| v0.1.0 | `main` | Gmail SMTP — **released ✅** |
-| v0.2.0 | `feature/telegram-drive` | Telegram + Dropbox backend — **in progress** |
-| v0.3.0 | `feature/setup-gui` | Tkinter setup GUI + unified credential management |
+| Version | Branch | Content | Status |
+|---------|--------|---------|--------|
+| v0.1.0 | `main` | Gmail SMTP | **released ✅** |
+| v0.2.0 | `feature/telegram-drive` | Telegram + Dropbox, recording overhaul, 8-script analysis suite | **released ✅** |
+| v0.3.0 | `feature/detection-filtering` | Blob coherence + consecutive-frame filter pipeline | in development |
+| v0.4.0 | `feature/timing-fixes` | Watchdog thread (#23), pre-record ring buffer (#27) | in development |
+| v0.5.0 | `feature/gui` | Flask web UI — live view, settings, scheduler, Dropbox FIFO | planned |
 
 ---
 
@@ -589,6 +591,94 @@ MOGS_LEARNING_RATE = 0.02
 This is a signal-filtering approach, not a classifier. It does not attempt to
 identify whether the moving object is a human — it only rejects motion patterns
 that are statistically unlikely to be human. A true person classifier (HOG, YOLO,
-etc.) is a possible v0.5.0 enhancement but requires significantly more compute and
+etc.) is a possible future enhancement but requires significantly more compute and
 a labelled training set. E-02 (HOG snapshot validator) in the existing plan is the
 stepping stone toward that.
+
+---
+
+## Phase 4 — Web GUI (v0.5.0, feature/gui)
+
+Branch from `feature/timing-fixes` once that is validated on hardware.
+
+### Architecture
+
+**Flask** running as a service on the Pi + **Tailscale** for external access.
+
+- Flask serves an MJPEG stream (live camera view) and a REST API for settings and controls
+- Tailscale gives the Pi a stable private IP (`100.x.x.x`) accessible from any device
+  where Tailscale is installed — no port forwarding, no public URL, no router config
+- Free for personal use (1 user, 100 devices)
+- Basic password auth gates the whole UI (`GUI_PASSWORD` in `.env`)
+- **Cloudflare Tunnel** is the alternative if a public URL is needed (e.g. to share
+  access with others); requires `CLOUDFLARE_TUNNEL_TOKEN` in `.env`
+- All API keys remain in `.env` / `config.py` — never in the UI code
+
+### Implementation phases
+
+**Phase 4a — Core (local + Tailscale)**
+- Live MJPEG camera stream in browser
+- Settings panel — edit all `config.py` values via form, saves to `.env`
+- ARM / DISARM toggle — pauses motion detection without stopping the camera
+- System status bar — Pi CPU temp, SD card space, current mode (day/night), uptime
+- Force relearn button — resets MOG2 background model when camera is moved
+
+**Phase 4b — Scheduler + Dropbox management**
+- Daily schedule — set arm/disarm times per day of week (no recording when home)
+- Dropbox dashboard — show used/total space, list uploaded clips oldest-first
+- FIFO auto-cleanup — delete oldest Dropbox clips before upload when approaching limit
+  (`DROPBOX_MAX_STORAGE_MB = 1800` — leaves headroom under the 2 GB free cap)
+
+**Phase 4c — Clip review and sensitivity tuning**
+- Clip gallery — thumbnails of local clips with playback; mark as person / false / delete
+- Sensitivity sliders — live-adjust `MIN_BLOB_COHERENCE`, `MIN_CONSECUTIVE_FRAMES`,
+  `MOTION_THRESHOLD_DAY/NIGHT` and see the effect on the live stream
+- Zone editor — draw exclusion rectangles on the live view (e.g. the window with trees)
+- Motion overlay — highlight detected blobs on the live stream in real time
+
+**Phase 4d — External access (optional)**
+- Cloudflare Tunnel toggle — enable/disable from UI, token in `.env`
+- Event log — scrollable timeline of motion events with Telegram notification status
+- System health alerts — Telegram message if SD card > 80% full or Pi temp > 80°C
+
+### Additional feature ideas
+
+| Feature | Value |
+|---------|-------|
+| Snapshot gallery | Faster to scan than opening clips — grid of motion-start JPEGs |
+| Clip review labels | Mark clips person/false — builds a labelled dataset for future ML |
+| Download clips from UI | Stream clip directly from Pi without going to Dropbox |
+| Multi-day schedule | Different arm/disarm times per weekday vs weekend |
+| Live heatmap tab | Running heatmap of where triggers accumulate, rendered in browser |
+
+### New config keys
+
+```python
+# GUI
+GUI_PORT                = 8080
+GUI_PASSWORD            = os.getenv("GUI_PASSWORD")
+
+# External access (choose one)
+TAILSCALE_ENABLED       = True   # default — no extra config needed beyond OS install
+CLOUDFLARE_TUNNEL_TOKEN = os.getenv("CLOUDFLARE_TUNNEL_TOKEN")  # alternative
+
+# Dropbox FIFO management
+DROPBOX_MAX_STORAGE_MB  = 1800   # trigger cleanup below this
+
+# Scheduler
+SCHEDULE_ENABLED        = False
+SCHEDULE_ARM_TIME       = os.getenv("SCHEDULE_ARM_TIME",    "09:00")
+SCHEDULE_DISARM_TIME    = os.getenv("SCHEDULE_DISARM_TIME", "18:00")
+```
+
+### New files
+
+| File | Purpose |
+|------|---------|
+| `02-scripts/gui_server.py` | Flask app — routes, MJPEG stream, REST API |
+| `02-scripts/scheduler.py` | Arm/disarm timer logic |
+| `02-scripts/dropbox_manager.py` | Storage audit + FIFO cleanup |
+| `05-gui/templates/index.html` | Main dashboard |
+| `05-gui/static/` | CSS / JS |
+| `03-tests/test_scheduler.py` | Scheduler unit tests |
+| `03-tests/test_dropbox_manager.py` | FIFO logic unit tests |
