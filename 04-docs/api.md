@@ -14,13 +14,17 @@ Auto-generated from docstrings in `02-scripts/`.
 
 ::: motion_detector
 
-## notifier
-
-::: notifier
-
 ## storage
 
 ::: storage
+
+## telegram_notifier
+
+::: telegram_notifier
+
+## dropbox_uploader
+
+::: dropbox_uploader
 
 ## main
 

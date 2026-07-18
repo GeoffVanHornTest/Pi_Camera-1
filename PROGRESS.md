@@ -5,7 +5,166 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
+## Current state (2026-07-16)
+
+**Branch:** `feature/telegram-drive` — 12 commits ahead of `main`, not yet merged.
+
+**Notification backend:** Telegram + Dropbox (Gmail SMTP replaced in v0.2.0 work).
+`notifier.py` (Gmail) still exists but is not called from `main.py`.
+
+**Tests:** 38 passing. Covers `config`, `storage`, `motion_detector`, `notifier`,
+`telegram_notifier`, `dropbox_uploader`. `camera.py` and `main.py` excluded (hardware).
+
+**Systemd service:** `pi-camera.service` is **disabled** during calibration.
+`ExecStart` commented out in `/etc/systemd/system/pi-camera.service`.
+Re-enable after algorithm is finalised (see Hardware Setup Checklist).
+
+**Open issues:** #19 (night threshold), #22 (false trigger investigation), #23 (timing
+bounds), #25 (contour area filter), #26 (consecutive-frame filter), #27 (pre-record
+buffer), #28 (data collection + algorithm plan).
+
+**Data collection in progress (issue #28):**
+
+| # | Position | Lighting | Status |
+|---|----------|----------|--------|
+| 1 | Original | Day | Done — 238 clips, 2026-07-14 |
+| 2 | New (repositioned) | Day | Done — 18 clips, 2026-07-15 |
+| 3 | New | Night | Done — 1 clip (startup trigger only), 2026-07-16 |
+| 4 | Original | Night | Planned — facing open window, car lights expected |
+| 5 | TBD | Day (supervised) | Planned — operator present, labelled in real time |
+
+---
+
 ## Session Log
+
+### 2026-07-14 to 2026-07-16 — False trigger investigation and data collection
+
+#### 8-script diagnostic analysis suite (issue #22)
+
+Added to `02-scripts/`:
+- `analyze_clips.py` — MOG2 gap analysis at 4 thresholds; output `analysis_*.csv`
+- `analyze_reflections.py` — 4-indicator reflection scoring; output `reflection_analysis_*.csv`
+- `combine_analysis.py` — joins gap + reflection CSVs; output `combined_analysis_*.csv`
+- `heatmap_analysis.py` — spatial heatmap, `wall_zone_pct` (top 40% of frame); output `heatmap_analysis_*.csv`
+- `brightness_trajectory.py` — per-second brightness, SPIKE_EARLY/SPIKE_LATE/SUSTAINED/FLAT; output `brightness_trajectory_*.csv`
+- `duration_stats.py` — OpenCV frame_count/fps duration, `mb_per_sec` complexity proxy; output `duration_stats_*.csv`
+- `interval_analysis.py` — timestamp parsing, cluster assignment (clips within 120s); output `interval_analysis_*.csv`
+- `cross_analysis.py` — aggregates all CSVs, scores 0–9, assigns PERSON/LIKELY_PERSON/LIKELY_FALSE/FALSE_TRIGGER verdict
+
+Run with `uv run python` (not bare `python` — cv2 lives in the uv venv).
+
+#### Key findings from 2026-07-14 daytime session (238 clips, confirmed empty room)
+
+- Scoring system misclassified 235/238 clips as PERSON or LIKELY_PERSON
+- Average gap_ratio = 0.96 (room almost always empty during clips)
+- `wall_zone_pct > 60%` threshold never fired — needs to drop to ~42% (Fix F3)
+- `in_cluster` fired on all 238 clips (useless when person is active all session)
+- Two false trigger types identified:
+  - **Type A** — brief empty-room trigger, gap_ratio >0.85
+  - **Type B** — MOG2 background drift under rising morning light, gap_ratio 0.27–0.44
+- Four scoring fixes derived (F1–F4) — pending implementation in `cross_analysis.py`
+
+#### Telegram ReadTimeout fix (issue #24, closed 2026-07-14)
+
+`telegram_notifier.send_photo()` had no exception handling. A network timeout killed
+the entire recording process mid-session (observed: 2 clips recorded, then crash).
+Both `send_photo()` and `send_message()` now wrap `requests.post` in `try/except`.
+
+#### Systemd service conflict
+
+`pi-camera.service` with `Restart=always` was restarting the camera independently of
+the tmux test sessions, causing two instances of `main.py` to compete for the camera.
+Service now disabled and `ExecStart` commented out for the calibration period.
+
+---
+
+### 2026-07-13 — Motion threshold calibration, clip analysis tool
+
+#### Problem
+Short clips (14-15s) being generated with obvious movement visible. User sitting still at desk caused repeated premature clip stops rather than recording to the 3-minute max.
+
+#### Root cause: MOG2 background adaptation
+When a person is relatively still, MOG2 gradually absorbs them into the background model. Contour areas drop below threshold even with subject present. At MOTION_THRESHOLD_DAY=10000, gaps of 7-11 seconds were measured — well above POST_MOTION_BUFFER_SEC=5.
+
+#### Diagnostic tool created
+`02-scripts/analyze_clips.py` — runs MOG2 at four threshold levels (5k, 10k, 15k, 25k) on every clip in 00-clips/ and reports the longest no-motion gap at each level. Used to measure the real motion gap behaviour per clip without relying on guesswork.
+
+Key finding from clip data: at T=5000, a still person produces gaps up to 16.6 seconds. POST_MOTION_BUFFER_SEC=5 was far too short to handle normal desk-work stillness.
+
+#### Changes applied
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `MOTION_THRESHOLD_DAY` | 10000 | 7500 | 10k caused 7-11s detection gaps for still person; 7.5k is compromise between noise rejection and still-person sensitivity |
+| `POST_MOTION_BUFFER_SEC` | 5 | 20 | Clip data showed 16s stillness gaps; buffer must exceed the longest expected stillness period |
+
+#### Still open
+- R-06: IR false triggers at night — MOTION_THRESHOLD_NIGHT stays at 25000 pending IR noise floor diagnostic
+- E-01: Better IR mode detection via grayscale channel check
+- E-02: Optional HOG person validator for threshold calibration
+
+---
+
+### 2026-07-11 to 2026-07-12 — v0.1.0 released, Telegram + Dropbox backend, recording logic overhaul
+
+#### Release
+- Merged `dev` → `main`, tagged `v0.1.0` (Gmail notification backend)
+- MkDocs site deployed to GitHub Pages before release
+- CHANGELOG.md created
+- `04-docs/api.md` added with mkdocstrings blocks for all modules
+
+#### Notification backend switch: Gmail → Telegram + Dropbox
+Gmail App Passwords were inaccessible (Google account security settings) and Google Drive
+rejected service account uploads with a 403 (service accounts have no storage quota on
+personal Drive). Switched to:
+- **Telegram Bot API** — instant push photo + text message to phone; no app passwords required
+- **Dropbox** — refresh token OAuth flow; upload returns a shareable link sent via Telegram
+
+New files:
+- `02-scripts/telegram_notifier.py` — `send_photo()` and `send_message()` via Bot API
+- `02-scripts/dropbox_uploader.py` — `_get_access_token()` (refresh token flow) + `upload()` (returns shareable URL)
+- `03-tests/test_telegram_notifier.py` — 5 tests
+- `03-tests/test_dropbox_uploader.py` — 4 tests
+
+`pyproject.toml` dependencies updated: Google packages removed, `requests` added.
+
+All work done on branch `feature/telegram-drive`.
+
+#### Motion threshold calibration
+Static IR scene was producing false triggers. Ran a diagnostic script to print the top 3
+contour areas each second with no one in frame. Max noise peak: **1132 pixels**.
+`MOTION_THRESHOLD` raised from 500 → **5000** (4× headroom above max noise).
+A person at 1080p generates 50,000–200,000+ pixel contours — well above the new threshold.
+
+#### Recording logic overhaul (main.py)
+
+**Bug 1 — blind sleep caused premature clip end:**
+The original `if not motion: time.sleep(POST_MOTION_BUFFER_SEC); stop_recording()` fired on a
+single frame without motion, then slept blindly. A brief pause at second 5 would stop recording
+at second 10 even with the subject still in frame.
+
+**Fix:** replaced blind sleep with a `motion_last_seen` timestamp. Recording only stops when
+motion has been continuously absent for `POST_MOTION_BUFFER_SEC` seconds.
+
+**Bug 2 — synchronous Dropbox upload blocked main loop:**
+Upload (30–120 s for a full clip) ran on the main thread, freezing motion detection entirely.
+If the subject returned during upload, the motion was missed.
+
+**Fix:** upload runs in a `daemon=True` background thread via `threading.Thread`. Main loop
+resumes frame capture immediately after `camera.stop_recording()`.
+
+**Enhancement — minimum recording duration + max clip cap:**
+Added to `config.py`:
+- `MIN_RECORD_SEC = 15` — brief no-motion gaps within the first 15 s are ignored
+- `MAX_RECORD_SEC = 180` — hard 3-minute cap; clip is closed and a new one starts seamlessly
+
+Stop condition is now: `time_recording >= MIN_RECORD_SEC AND time_since_motion >= POST_MOTION_BUFFER_SEC`
+
+`_finish_clip()` helper extracted so both the normal stop and the max-duration split share
+the same stop + background-upload logic.
+
+**Test count: 38 tests passing**, ruff clean.
+
+---
 
 ### 2026-07-10 — Full audit, 13 issues resolved, hardware test attempted
 
@@ -54,13 +213,17 @@ with the snapshot attached to a Gmail address.
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Notification method | Gmail via SMTP | Rogers Canada discontinued their email-to-SMS gateway. Gmail push notification via the Gmail app works just as well. |
-| Gmail auth | App Password (not login password) | Google requires App Passwords for SMTP access when 2-Step Verification is on |
+| Notification method | Telegram Bot API | Gmail App Passwords inaccessible; Telegram gives instant push photo + text to phone with no third-party auth complexity |
+| Video storage | Dropbox (refresh token OAuth) | Google Drive rejected service account uploads with 403 (no storage quota). Dropbox refresh token never expires unless revoked. |
+| Upload threading | `threading.Thread(daemon=True)` | Synchronous upload (30–120 s) blocked the main loop entirely, missing motion during upload. Daemon thread lets upload run in background. |
+| Recording stop condition | `motion_last_seen` timestamp | Blind `time.sleep()` stopped recording on any single frame without motion. Timestamp approach requires motion to be continuously absent for `POST_MOTION_BUFFER_SEC`. |
+| Min/max clip duration | `MIN_RECORD_SEC=15`, `MAX_RECORD_SEC=180` | Min prevents clips being cut short by brief pauses; max prevents unbounded file growth and matches future GUI setting concept. |
+| Motion threshold | 5000 pixels | Noise diagnostic showed static IR scene peaks at 1132 px contours. 5000 gives 4× headroom while a person generates 50k–200k px. |
 | OpenCV install | `opencv-python-headless` | Pi doesn't need the GUI display components — headless is lighter |
 | Motion algorithm | MOG2 background subtraction | Adapts to gradual lighting changes, better than simple frame-diff for night scenes |
 | Config format | `config.py` (not JSON) | Pure Python project — no parsing boilerplate, supports logic and comments |
 | venv creation | `uv venv --system-site-packages` | `picamera2` is apt-installed into `/usr/lib/python3/dist-packages` and is invisible to an isolated venv; this flag lets the venv reach apt packages |
-| `detect()` vs `new_event_allowed()` | Separate functions | `detect()` returns a raw per-frame boolean with no cooldown — this is what the recording loop needs. `new_event_allowed()` gates the *event* (start new clip + send email). Previously a combined detect+cooldown meant a person walking for 30 s would only produce a 10 s clip. |
+| `detect()` vs `new_event_allowed()` | Separate functions | `detect()` returns a raw per-frame boolean with no cooldown — this is what the recording loop needs. `new_event_allowed()` gates the *event* (start new clip + send alert). |
 | `CLIPS_DIR` path | Anchored to `__file__` | `"clips"` is CWD-relative; running pytest from the repo root created stray directories. `os.path.abspath(__file__)` makes it always resolve to `PI_Camera/00-clips/`. |
 | `camera.close()` | Both `stop()` and `close()` | `stop()` alone pauses the camera but does not release `/dev/video0`; a subsequent launch fails with a device-busy error. |
 
@@ -112,6 +275,7 @@ The project uses `pyproject.toml` as the source of truth, managed with `uv`.
 ```
 opencv-python-headless
 python-dotenv
+requests
 ```
 
 **picamera2** — installed via apt, not pip:
@@ -143,17 +307,34 @@ mkdocstrings[python]>=0.24
 
 ## `.env` File
 
-Create `02-scripts/.env` and fill in your real values.
+Create `.env` in the project root and fill in your real values.
 **Never commit this file** — it is already listed in `.gitignore`.
 
 ```
-GMAIL_SENDER=your_address@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
-GMAIL_RECIPIENT=your_address@gmail.com
+TELEGRAM_BOT_TOKEN=your_bot_token_from_BotFather
+TELEGRAM_CHAT_ID=your_numeric_chat_id
+DROPBOX_APP_KEY=your_app_key
+DROPBOX_APP_SECRET=your_app_secret
+DROPBOX_REFRESH_TOKEN=your_refresh_token
 ```
 
-Generate a Gmail App Password at:
-Google Account → Security → 2-Step Verification → App Passwords
+**Telegram setup:**
+1. Message @BotFather on Telegram → `/newbot` → copy the token
+2. Message your new bot, then call: `curl "https://api.telegram.org/bot<TOKEN>/getUpdates"` — find `"chat": {"id": ...}` in the response
+
+**Dropbox setup:**
+1. Create app at dropbox.com/developers → App Console → Scoped access, Full Dropbox
+2. Copy App Key and App Secret
+3. Authorize: `https://www.dropbox.com/oauth2/authorize?client_id=<APP_KEY>&response_type=code&token_access_type=offline`
+4. Exchange the code for a refresh token via curl (run immediately — code expires in minutes):
+```bash
+curl -X POST https://api.dropbox.com/oauth2/token \
+  -d code=<AUTH_CODE> \
+  -d grant_type=authorization_code \
+  -d client_id=<APP_KEY> \
+  -d client_secret=<APP_SECRET>
+```
+Copy `refresh_token` from the response.
 
 ---
 
@@ -431,9 +612,10 @@ Loop now calls `motion_detector.new_event_allowed()` to gate new event starts.
 
 ## Testing
 
-Unit tests live in `03-tests/` — **29 tests, all passing**.
+Unit tests live in `03-tests/` — **38 tests, all passing**.
 
-Coverage: `config.py`, `storage.py`, `motion_detector.py`, `notifier.py`.
+Coverage: `config.py`, `storage.py`, `motion_detector.py`, `telegram_notifier.py`,
+`dropbox_uploader.py`. `notifier.py` (Gmail, dead code) also has 3 tests retained.
 `camera.py` and `main.py` are not unit-tested (depend on live `picamera2` hardware).
 
 Run the suite:
@@ -482,31 +664,20 @@ Note: the CI environment does not have `picamera2`; all tests mock out hardware 
 
 ## Systemd Service
 
-`pi-camera.service` enables auto-start on boot and automatic restart on crash:
+`pi-camera.service` at `/etc/systemd/system/pi-camera.service` enables auto-start
+on boot and automatic restart on crash.
 
-```ini
-[Unit]
-Description=PI Camera motion detection
-After=network.target
+**Current status: DISABLED during calibration phase.**
+`ExecStart` and `Restart=always` are commented out to prevent the service from
+competing with manual tmux test sessions. Re-enable after the algorithm is finalised:
 
-[Service]
-ExecStart=/home/pi/Desktop/PI_Camera/.venv/bin/python /home/pi/Desktop/PI_Camera/02-scripts/main.py
-WorkingDirectory=/home/pi/Desktop/PI_Camera/02-scripts
-Restart=always
-RestartSec=5
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-```
-
-To install:
 ```bash
-sudo cp /home/pi/Desktop/PI_Camera/pi-camera.service /etc/systemd/system/
+sudo nano /etc/systemd/system/pi-camera.service
+# uncomment ExecStart and Restart=always, remove the ExecStart=/bin/true line
 sudo systemctl daemon-reload
-sudo systemctl enable pi-camera
-sudo systemctl start pi-camera
-sudo systemctl status pi-camera
+sudo systemctl enable pi-camera.service
+sudo systemctl start pi-camera.service
+sudo systemctl status pi-camera.service
 ```
 
 ---
@@ -537,6 +708,6 @@ side-by-side comparison of the three independent analysis plans.
 - [ ] Install ffmpeg: `sudo apt install ffmpeg`
 - [x] Create venv with system-site-packages: `uv venv --system-site-packages`
 - [x] Install Python deps: `uv sync --extra dev`
-- [x] Fill in `02-scripts/.env` with Gmail credentials
-- [ ] Supervised end-to-end test: run `main.py`, walk in front of camera, verify clip in `00-clips/` and email received
-- [ ] Install and enable systemd service (see Systemd Service section above)
+- [x] Fill in `02-scripts/.env` with Telegram and Dropbox credentials
+- [ ] Supervised end-to-end test: run `main.py`, walk in front of camera, verify clip in `00-clips/`, Telegram snapshot received, Dropbox link received
+- [ ] Re-enable systemd service after calibration complete (see Systemd Service section above)

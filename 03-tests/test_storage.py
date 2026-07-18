@@ -34,9 +34,7 @@ def test_get_snapshot_path_contains_snapshot_prefix():
 def test_save_snapshot_returns_path(tmp_path, monkeypatch):
     # Redirect CLIPS_DIR to a temporary directory so no real files are created
     monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        storage, "get_snapshot_path", lambda: str(tmp_path / "snapshot_test.jpg")
-    )
+    monkeypatch.setattr(storage, "get_snapshot_path", lambda: str(tmp_path / "snapshot_test.jpg"))
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     result = storage.save_snapshot(frame)
@@ -45,9 +43,7 @@ def test_save_snapshot_returns_path(tmp_path, monkeypatch):
 
 def test_save_snapshot_writes_file(tmp_path, monkeypatch):
     monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        storage, "get_snapshot_path", lambda: str(tmp_path / "snapshot_test.jpg")
-    )
+    monkeypatch.setattr(storage, "get_snapshot_path", lambda: str(tmp_path / "snapshot_test.jpg"))
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     path = storage.save_snapshot(frame)

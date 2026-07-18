@@ -46,12 +46,13 @@ def detect(frame):
     # moving object. RETR_EXTERNAL ignores holes inside blobs, CHAIN_APPROX_SIMPLE
     # stores only corner points rather than every pixel on the edge.
 
-    motion_detected = any(
-        cv2.contourArea(c) > config.MOTION_THRESHOLD for c in contours
+    brightness = cv2.mean(frame)[0]
+    threshold = (
+        config.MOTION_THRESHOLD_DAY
+        if brightness > config.BRIGHTNESS_THRESHOLD
+        else config.MOTION_THRESHOLD_NIGHT
     )
-    # if any single contour exceeds the threshold it's real motion — speckles
-    # and artifacts produce tiny contours (10-20 px), a person produces thousands
-
+    motion_detected = any(cv2.contourArea(c) > threshold for c in contours)
     return motion_detected, frame
 
 

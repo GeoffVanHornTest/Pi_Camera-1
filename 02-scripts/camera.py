@@ -71,9 +71,11 @@ def stop_recording():
     The camera continues running after this call — get_frame() can
     still be used to capture frames for motion detection.
     """
-    # tells picamera2 to finish writing the video file and shut down the encoder.
-    # The camera itself keeps running, so we can keep calling get_frame() after a clip ends.
+    # picamera2's stop_recording() internally calls stop() on the camera,
+    # which halts frame delivery and causes capture_array() to block.
+    # Calling start() immediately after restores the preview stream.
     _camera.stop_recording()
+    _camera.start()
 
 
 def close():
