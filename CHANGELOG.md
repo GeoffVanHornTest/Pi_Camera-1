@@ -4,7 +4,7 @@ All notable changes to PI Camera are documented here.
 
 ---
 
-## [Unreleased] — feature/telegram-drive (v0.2.0 candidate)
+## [0.2.0] - 2026-07-17
 
 ### Added
 
