@@ -625,15 +625,18 @@ Branch from `feature/timing-fixes` once that is validated on hardware.
 
 **Phase 4b — Scheduler + storage management**
 - Daily schedule — set arm/disarm times per day of week (no recording when home)
-- **Local clip storage** (user-settable via GUI):
-  - `CLIPS_DIR` — storage location (default `00-clips/`, can be redirected to USB drive etc.)
-  - `LOCAL_MAX_STORAGE_MB` — size cap; FIFO deletes oldest clips before each new recording
-    starts, keeping usage below the cap; replaces the existing time-based `cleanup_old_clips(days=7)`
-- **Dropbox storage** (user-settable via GUI):
-  - `DROPBOX_MAX_STORAGE_MB` — size cap; FIFO deletes oldest Dropbox clips before upload
-    (`1800` MB default — leaves headroom under the 2 GB free cap)
+- **Local clip storage** (primary archive — user-settable via GUI):
+  - `CLIPS_DIR` — storage location (default `00-clips/`, redirect to USB drive / external disk)
+  - `LOCAL_MAX_STORAGE_MB` — size cap; FIFO deletes oldest local clips when limit is reached
+  - Local cap is intentionally much larger than Dropbox (e.g. 50–500 GB on external media)
+  - Replaces the existing time-based `cleanup_old_clips(days=7)` with size-based FIFO
+- **Dropbox storage** (remote access copy — hard cap 2 GB free plan):
+  - `DROPBOX_MAX_STORAGE_MB` — size cap, default `1800` to leave headroom under the 2 GB limit
+  - FIFO deletes oldest Dropbox clips before each upload to stay within cap
   - Dashboard shows used/total space and lists clips oldest-first
-- Both FIFO policies run independently — local and Dropbox can be sized differently
+- **Redundancy design**: the size gap between local and Dropbox caps is the recovery window.
+  Clips that Dropbox FIFO has already purged almost certainly still exist in local storage.
+  If a Dropbox clip is lost or accidentally deleted, the local copy is the fallback.
 
 **Phase 4c — Clip review and sensitivity tuning**
 - Clip gallery — thumbnails of local clips with playback; mark as person / false / delete
