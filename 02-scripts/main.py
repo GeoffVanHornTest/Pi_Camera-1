@@ -133,7 +133,6 @@ def main():
                 camera.start_recording(filepath)
                 recording_started = now
                 motion_last_seen = now
-                currently_recording = True
                 _arm_watchdog()
 
             elif (
