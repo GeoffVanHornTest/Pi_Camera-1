@@ -1,5 +1,6 @@
 # camera.py
 
+import os
 import subprocess
 
 import config
@@ -26,9 +27,13 @@ _encoder = H264Encoder(bitrate=config.VIDEO_BITRATE_BPS)
 _circular = CircularOutput(buffersize=int(config.PRE_ROLL_SEC * config.VIDEO_BITRATE_BPS / 8))
 _camera.start_recording(_encoder, _circular)
 
-# CircularOutput.fileoutput requires io.BufferedIOBase, not FfmpegOutput.
-# We pipe the raw H264 stream into an ffmpeg subprocess for MP4 muxing.
-_proc = None
+# Writing the H264 stream to a named file rather than an ffmpeg pipe because
+# CircularOutput dumps the ring buffer starting at whatever NAL unit was
+# oldest in the buffer — there is no guarantee an SPS/PPS header is first.
+# ffmpeg can probe a file to find SPS/PPS anywhere in the stream; it cannot
+# do that on a pipe, causing silent corruption or an immediate ffmpeg exit
+# that breaks the pipe and kills picamera2's internal output thread.
+_h264_file = None
 
 
 def get_frame():
@@ -44,50 +49,61 @@ def get_frame():
 def start_recording(filepath):
     """Tap the ring buffer into a file and start saving footage.
 
+    Writes to a temporary .h264 file; stop_recording() converts it to MP4.
     The last config.PRE_ROLL_SEC seconds already in the buffer are flushed
     to the file first, so the clip starts before the trigger point.
 
     Args:
         filepath: Full path to the output .mp4 file.
     """
-    global _proc
-    _proc = subprocess.Popen(
-        [
-            "ffmpeg", "-y",
-            "-f", "h264",
-            "-framerate", str(config.FPS),
-            "-i", "pipe:0",
-            "-c:v", "copy",
-            filepath,
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    # proc.stdin is io.BufferedWriter (subclass of io.BufferedIOBase) — satisfies picamera2
-    _circular.fileoutput = _proc.stdin
+    global _h264_file
+    h264_path = filepath.replace(".mp4", ".h264")
+    _h264_file = open(h264_path, "wb")
+    _circular.fileoutput = _h264_file
     _circular.start()
 
 
 def stop_recording():
-    """Stop writing to the current clip file.
+    """Stop writing to the current clip file and convert to MP4.
 
-    The circular buffer continues capturing — the next start_recording()
-    call will again include PRE_ROLL_SEC seconds of pre-motion footage.
-    No camera restart needed between clips.
+    Closes the .h264 file, remuxes it to .mp4 with ffmpeg (-c:v copy so no
+    re-encode), then deletes the .h264 source. The circular buffer continues
+    capturing — the next start_recording() call will again include
+    PRE_ROLL_SEC seconds of pre-motion footage.
     """
-    global _proc
+    global _h264_file
     _circular.stop()
-    if _proc is not None:
-        _proc.stdin.close()  # send EOF so ffmpeg finalises the MP4 container
-        try:
-            _proc.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            print("WARNING: ffmpeg did not exit in 15s — killing process")
-            _proc.kill()
-            _proc.wait()
-        _proc = None
+
+    h264_path = None
+    if _h264_file is not None:
+        h264_path = _h264_file.name
+        _h264_file.close()
+        _h264_file = None
     _circular.fileoutput = None
+
+    if h264_path and os.path.exists(h264_path):
+        mp4_path = h264_path.replace(".h264", ".mp4")
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-f", "h264",
+                    "-framerate", str(config.FPS),
+                    "-i", h264_path,
+                    "-c:v", "copy",
+                    mp4_path,
+                ],
+                timeout=30,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.TimeoutExpired:
+            print("WARNING: ffmpeg conversion timed out after 30s")
+        finally:
+            try:
+                os.remove(h264_path)
+            except FileNotFoundError:
+                pass
 
 
 def close():
