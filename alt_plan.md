@@ -623,14 +623,21 @@ Branch from `feature/timing-fixes` once that is validated on hardware.
 - System status bar — Pi CPU temp, SD card space, current mode (day/night), uptime
 - Force relearn button — resets MOG2 background model when camera is moved
 
-**Phase 4b — Scheduler + Dropbox management**
+**Phase 4b — Scheduler + storage management**
 - Daily schedule — set arm/disarm times per day of week (no recording when home)
-- Dropbox dashboard — show used/total space, list uploaded clips oldest-first
-- FIFO auto-cleanup — delete oldest Dropbox clips before upload when approaching limit
-  (`DROPBOX_MAX_STORAGE_MB = 1800` — leaves headroom under the 2 GB free cap)
+- **Local clip storage** (user-settable via GUI):
+  - `CLIPS_DIR` — storage location (default `00-clips/`, can be redirected to USB drive etc.)
+  - `LOCAL_MAX_STORAGE_MB` — size cap; FIFO deletes oldest clips before each new recording
+    starts, keeping usage below the cap; replaces the existing time-based `cleanup_old_clips(days=7)`
+- **Dropbox storage** (user-settable via GUI):
+  - `DROPBOX_MAX_STORAGE_MB` — size cap; FIFO deletes oldest Dropbox clips before upload
+    (`1800` MB default — leaves headroom under the 2 GB free cap)
+  - Dashboard shows used/total space and lists clips oldest-first
+- Both FIFO policies run independently — local and Dropbox can be sized differently
 
 **Phase 4c — Clip review and sensitivity tuning**
 - Clip gallery — thumbnails of local clips with playback; mark as person / false / delete
+  - Clip list respects `CLIPS_DIR` — works whether clips are on SD card or USB drive
 - Sensitivity sliders — live-adjust `MIN_BLOB_COHERENCE`, `MIN_CONSECUTIVE_FRAMES`,
   `MOTION_THRESHOLD_DAY/NIGHT` and see the effect on the live stream
 - Zone editor — draw exclusion rectangles on the live view (e.g. the window with trees)
@@ -662,8 +669,12 @@ GUI_PASSWORD            = os.getenv("GUI_PASSWORD")
 TAILSCALE_ENABLED       = True   # default — no extra config needed beyond OS install
 CLOUDFLARE_TUNNEL_TOKEN = os.getenv("CLOUDFLARE_TUNNEL_TOKEN")  # alternative
 
-# Dropbox FIFO management
-DROPBOX_MAX_STORAGE_MB  = 1800   # trigger cleanup below this
+# Local clip storage — location and size cap both user-settable via GUI
+CLIPS_DIR               = os.getenv("CLIPS_DIR", os.path.join(_BASE_DIR, "00-clips"))
+LOCAL_MAX_STORAGE_MB    = int(os.getenv("LOCAL_MAX_STORAGE_MB", "10000"))  # 10 GB default
+
+# Dropbox FIFO — user-settable via GUI
+DROPBOX_MAX_STORAGE_MB  = int(os.getenv("DROPBOX_MAX_STORAGE_MB", "1800"))
 
 # Scheduler
 SCHEDULE_ENABLED        = False
@@ -677,7 +688,8 @@ SCHEDULE_DISARM_TIME    = os.getenv("SCHEDULE_DISARM_TIME", "18:00")
 |------|---------|
 | `02-scripts/gui_server.py` | Flask app — routes, MJPEG stream, REST API |
 | `02-scripts/scheduler.py` | Arm/disarm timer logic |
-| `02-scripts/dropbox_manager.py` | Storage audit + FIFO cleanup |
+| `02-scripts/storage_manager.py` | Local FIFO cleanup — size-based, replaces time-based `cleanup_old_clips` |
+| `02-scripts/dropbox_manager.py` | Dropbox storage audit + FIFO cleanup |
 | `05-gui/templates/index.html` | Main dashboard |
 | `05-gui/static/` | CSS / JS |
 | `03-tests/test_scheduler.py` | Scheduler unit tests |
