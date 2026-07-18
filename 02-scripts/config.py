@@ -71,6 +71,14 @@ MIN_CONSECUTIVE_FRAMES = 3
 MIN_BLOB_COHERENCE = 0.30
 CENTROID_HISTORY_LEN = 10
 
+# --- Pre-record ring buffer ---
+# PRE_ROLL_SEC is how many seconds of footage to buffer continuously so that
+# the start of a motion event is captured even though recording begins after
+# the trigger. The circular output keeps this much H264 data in memory at all
+# times; when a clip starts, the buffer is flushed to the file first.
+# Estimated at ~10 Mbps (H264Encoder default for 1080p).
+PRE_ROLL_SEC = 5
+
 # --- Recording ---
 # MIN_RECORD_SEC is the minimum clip duration after motion is first detected.
 # Brief gaps in motion within this window are ignored — the recording keeps

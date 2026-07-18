@@ -1,6 +1,5 @@
 # main.py
 
-
 """Entry point for the PI Camera motion detection system.
 
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
@@ -15,6 +14,34 @@ import dropbox_uploader
 import motion_detector
 import storage
 import telegram_notifier
+
+# --- Watchdog (issue #23) ---
+# The main loop timing checks only run when get_frame() returns. If the camera
+# stalls, MAX_RECORD_SEC can be breached by an entire frame period. The watchdog
+# is a daemon Timer that sets _split_event after MAX_RECORD_SEC regardless of
+# what get_frame() is doing. The main loop checks the event on every iteration.
+_watchdog = None
+_split_event = threading.Event()
+
+
+def _arm_watchdog():
+    """Start (or restart) the MAX_RECORD_SEC timer for the current clip."""
+    global _watchdog
+    _split_event.clear()
+    if _watchdog:
+        _watchdog.cancel()
+    _watchdog = threading.Timer(config.MAX_RECORD_SEC, _split_event.set)
+    _watchdog.daemon = True
+    _watchdog.start()
+
+
+def _cancel_watchdog():
+    """Cancel the watchdog and clear the split event."""
+    global _watchdog
+    if _watchdog:
+        _watchdog.cancel()
+        _watchdog = None
+    _split_event.clear()
 
 
 def _validate_config():
@@ -39,9 +66,10 @@ def _validate_config():
 
 
 def _finish_clip(filepath):
-    """Stop recording, upload the clip, and send the Telegram link."""
+    """Stop recording, reset filter state, and upload the clip in the background."""
     camera.stop_recording()
     motion_detector.reset_motion_state()
+    _cancel_watchdog()
     print("Recording stopped — uploading clip in background...")
 
     def _upload_and_notify(path):
@@ -63,8 +91,8 @@ def main():
     currently_recording = False
     filepath = None
     last_cleanup = 0
-    motion_last_seen = 0.0  # timestamp of the most recent frame with detected motion
-    recording_started = 0.0  # timestamp when the current clip began
+    motion_last_seen = 0.0
+    recording_started = 0.0
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
@@ -81,7 +109,6 @@ def main():
             motion_last_seen = now
 
         if motion and not currently_recording and motion_detector.new_event_allowed():
-            # start a new clip: motion present, not already recording, cooldown elapsed
             filepath = storage.get_video_path()
             camera.start_recording(filepath)
             snapshot = storage.save_snapshot(frame)
@@ -89,25 +116,30 @@ def main():
             currently_recording = True
             recording_started = now
             motion_last_seen = now
+            _arm_watchdog()
             print(f"Motion detected — recording to {filepath}")
 
         if currently_recording:
             time_recording = now - recording_started
             time_since_motion = now - motion_last_seen
 
-            if time_recording >= config.MAX_RECORD_SEC:
-                # hard cap reached — close this clip and immediately start a new one
-                print("Max clip duration reached — splitting clip.")
+            if _split_event.is_set():
+                # Watchdog fired — MAX_RECORD_SEC elapsed on a background timer
+                # so this fires even if get_frame() was slow (#23).
+                print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
                 clip_to_upload = filepath
                 _finish_clip(clip_to_upload)
                 filepath = storage.get_video_path()
                 camera.start_recording(filepath)
                 recording_started = now
                 motion_last_seen = now
+                currently_recording = True
+                _arm_watchdog()
 
-            elif (time_recording >= config.MIN_RECORD_SEC
-                  and time_since_motion >= config.POST_MOTION_BUFFER_SEC):
-                # minimum duration met and motion has been absent long enough — stop
+            elif (
+                time_recording >= config.MIN_RECORD_SEC
+                and time_since_motion >= config.POST_MOTION_BUFFER_SEC
+            ):
                 clip_to_upload = filepath
                 filepath = None
                 currently_recording = False
@@ -115,12 +147,10 @@ def main():
 
 
 if __name__ == "__main__":
-    # only run when this file is executed directly (not when imported by another module)
     try:
         main()
     except KeyboardInterrupt:
-        # user pressed Ctrl+C — shut down cleanly instead of dying mid-frame
         print("\nStopping PI Camera...")
+        _cancel_watchdog()
         camera.close()
-        # release the camera hardware so it's not left in a locked state
         print("Camera released. Goodbye.")
