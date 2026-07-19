@@ -7,12 +7,15 @@ Use it to resume work on a new machine or after a long break.
 
 ## Current state (2026-07-19)
 
-**Branch:** `main` — v0.4.0 released.
+**Branch:** `main` — v0.4.0 released. Post-release fixes in progress (unreleased).
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
 **Tests:** 44 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`. `camera.py` and `main.py` excluded (hardware-dependent).
+
+**Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
+alignment). Reduced from 1080p/4Mbps to address frame-drop under concurrent load (#53).
 
 **Systemd service:** `pi-camera.service` is **disabled** during calibration.
 The deployed `/etc/systemd/system/pi-camera.service` uses `ExecStart=/bin/true` and
@@ -23,16 +26,14 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 | # | Type | Title |
 |---|------|-------|
-| 34 | bug/critical | ffmpeg conversion failures silently delete footage |
-| 35 | bug/high | Watchdog armed after blocking Telegram call |
-| 36 | bug/high | No SIGTERM handler — hardware can be left locked |
+| 36 | bug/high | No SIGTERM handler — deferred to pre-GUI (#29) |
 | 38 | security | Orphaned Google Cloud service account key on disk |
-| 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated |
 | 37 | bug | cv2.imwrite() return value ignored |
 | 39 | bug | Telegram API response body never checked |
 | 40 | enhancement | main.py / camera.py have zero test coverage |
 | 41 | bug | combine_analysis.py crashes on empty input |
-| 42 | bug | stop_recording() blocks detection loop at every clip boundary |
+| 53 | bug | Clips shorter than wall-clock time — frame drops under load |
+| 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated |
 | 20 | enhancement | Improve day/night detection + AI snapshot validation |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |

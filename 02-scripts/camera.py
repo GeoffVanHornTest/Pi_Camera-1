@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import threading
 
 import config
 from picamera2 import Picamera2
@@ -61,13 +62,61 @@ def start_recording(filepath):
     _circular.start()
 
 
-def stop_recording():
+def _convert_to_mp4(h264_path, on_complete=None):
+    mp4_path = h264_path.replace(".h264", ".mp4")
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-f", "h264", "-framerate", str(config.FPS),
+             "-i", h264_path, "-c:v", "copy", mp4_path],
+            timeout=30,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            os.remove(h264_path)
+            if on_complete:
+                on_complete(mp4_path)
+        else:
+            print(f"WARNING: ffmpeg failed (rc={result.returncode}) — keeping {h264_path}")
+    except subprocess.TimeoutExpired:
+        print(f"WARNING: ffmpeg timed out — keeping {h264_path}")
+
+
+def split_recording(new_filepath, on_complete=None):
+    """Switch to a new clip file without clearing the ring buffer.
+
+    Reassigns fileoutput directly so the deque survives the transition.
+    The new clip starts with pre-roll from the existing buffer. The old
+    clip is converted to MP4 in a background thread.
+    """
+    global _h264_file
+
+    old_h264_file = _h264_file
+    old_h264_path = old_h264_file.name if old_h264_file else None
+
+    new_h264_path = new_filepath.replace(".mp4", ".h264")
+    new_h264_file = open(new_h264_path, "wb")
+
+    # Switching fileoutput resets _firstframe=True and keeps recording=True.
+    # The deque is not drained, so the new clip gets pre-roll from the buffer.
+    _circular.fileoutput = new_h264_file
+    _h264_file = new_h264_file
+
+    if old_h264_file:
+        old_h264_file.close()
+
+    if old_h264_path and os.path.exists(old_h264_path):
+        threading.Thread(target=_convert_to_mp4, args=(old_h264_path, on_complete), daemon=True).start()
+
+
+def stop_recording(on_complete=None):
     """Stop writing to the current clip file and convert to MP4.
 
-    Closes the .h264 file, remuxes it to .mp4 with ffmpeg (-c:v copy so no
-    re-encode), then deletes the .h264 source. The circular buffer continues
-    capturing — the next start_recording() call will again include
-    PRE_ROLL_SEC seconds of pre-motion footage.
+    Closes the .h264 file, then remuxes it to .mp4 in a background thread
+    so the detection loop is not blocked during conversion. The .h264 is
+    deleted on success; kept on failure as a recovery artifact.
+    on_complete(mp4_path) is called from the background thread after a
+    successful conversion — use it to trigger upload/notification.
     """
     global _h264_file
     _circular.stop()
@@ -80,33 +129,7 @@ def stop_recording():
     _circular.fileoutput = None
 
     if h264_path and os.path.exists(h264_path):
-        mp4_path = h264_path.replace(".h264", ".mp4")
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-f",
-                    "h264",
-                    "-framerate",
-                    str(config.FPS),
-                    "-i",
-                    h264_path,
-                    "-c:v",
-                    "copy",
-                    mp4_path,
-                ],
-                timeout=30,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired:
-            print("WARNING: ffmpeg conversion timed out after 30s")
-        finally:
-            try:
-                os.remove(h264_path)
-            except FileNotFoundError:
-                pass
+        threading.Thread(target=_convert_to_mp4, args=(h264_path, on_complete), daemon=True).start()
 
 
 def close():

@@ -63,12 +63,14 @@ def video_duration(filepath):
 
 
 def parse_trigger_time(filepath):
-    """Parse the trigger datetime from a motion_YYYY-MM-DD_HH-MM-SS.mp4 filename."""
+    """Parse the trigger datetime from a motion_YYYY-MM-DD_HH-MM-SS[-mmm].mp4 filename."""
     name = os.path.basename(filepath).replace("motion_", "").replace(".mp4", "")
-    try:
-        return datetime.strptime(name, "%Y-%m-%d_%H-%M-%S")
-    except ValueError:
-        return None
+    for fmt in ("%Y-%m-%d_%H-%M-%S-%f", "%Y-%m-%d_%H-%M-%S"):
+        try:
+            return datetime.strptime(name, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def verify_clip(filepath):

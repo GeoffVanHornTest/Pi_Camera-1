@@ -23,7 +23,7 @@ load_dotenv()
 # RESOLUTION is a (width, height) tuple in pixels. 1920x1080 is full HD
 # and well within the OV5647's capability.
 # FPS is frames per second captured — 30 is standard for smooth video.
-RESOLUTION = (1920, 1080)
+RESOLUTION = (1280, 720)
 FPS = 30
 
 # --- Motion detection ---
@@ -73,8 +73,8 @@ CENTROID_HISTORY_LEN = 10
 # 4 Mbps gives good detail at 1080p while keeping file sizes reasonable.
 # Note: CircularOutput buffersize is in frames (not bytes), so buffer duration
 # is controlled by PRE_ROLL_SEC * FPS, not by this bitrate.
-PRE_ROLL_SEC = 5
-VIDEO_BITRATE_BPS = 4_000_000
+PRE_ROLL_SEC = 8
+VIDEO_BITRATE_BPS = 2_500_000
 
 # --- Recording ---
 # MIN_RECORD_SEC is a minimum elapsed-time gate before the post-motion stop
