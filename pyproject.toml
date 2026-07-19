@@ -7,8 +7,8 @@ packages = ["02-scripts"]
 
 [project]
 name = "pi-camera"
-version = "0.1.0"
-description = "Pi Night Vision Motion Camera with motion detection and Gmail alerts"
+version = "0.4.2"
+description = "Pi Night Vision Motion Camera with motion detection, Telegram alerts, and Dropbox upload"
 authors = [
     { name = "Geoff Van Horn", email = "geoffrey@g2voptics.com" }
 ]
