@@ -4,6 +4,30 @@ All notable changes to PI Camera are documented here.
 
 ---
 
+## [0.4.1] - 2026-07-19
+
+### Fixed
+
+- **Dropbox upload race (#54)** — upload now fires via `on_complete` callback after ffmpeg signals success; previously `stop_recording()` returned immediately and the upload thread ran before the MP4 existed
+- **Consecutive-clip pre-roll loss (#55)** — `split_recording()` switches `CircularOutput.fileoutput` directly without calling `stop()`, preserving the ring buffer for the next clip; `stop()` drains the deque and would have cleared it
+- **Watchdog arms before Telegram send (#35)** — `_arm_watchdog()` moved before `send_photo()` so network latency no longer counts against the MAX_RECORD_SEC budget
+- **ffmpeg blocking the detection loop (#34/#42)** — `stop_recording()` now spawns a background thread for ffmpeg conversion; main loop is never blocked
+- **Frame drops under load (#53)** — moved to 720p / 2.5 Mbps; field-verified <1% duration error (was ~18% at 1080p / 4 Mbps). ffmpeg runs at `nice -n 10` to yield to the encoder during watchdog splits
+- **SIGTERM not handled (#36)** — `signal.SIGTERM` now calls shared `_shutdown()` alongside `KeyboardInterrupt`; `camera.close()` runs on `systemctl stop` / `kill`, preventing hardware lock and crash-restart loops
+- **`cv2.imwrite` silent failure (#37)** — `save_snapshot()` now raises `RuntimeError` if `imwrite` returns `False`
+- **Telegram API errors silent (#39)** — `send_photo()` and `send_message()` check `response.json()["ok"]` and log a warning on failure
+- **`combine_analysis.py` crash on empty join (#40)** — early exit with a clear message when no clips matched both datasets
+- **`MIN_RECORD_SEC` dead code (#43)** — constant removed from `config.py`; elif condition in `main.py` simplified to check only `POST_MOTION_BUFFER_SEC`
+
+### Changed
+
+- `RESOLUTION`: 1920×1080 → 1280×720
+- `VIDEO_BITRATE_BPS`: 4 000 000 → 2 500 000
+- `PRE_ROLL_SEC`: 5 → 8 (more buffer headroom now that frame drops are resolved)
+- After each clip conversion, `ffprobe` logs actual vs expected duration so frame-drop regressions are visible in the terminal
+
+---
+
 ## [0.4.0] - 2026-07-18
 
 ### Added
