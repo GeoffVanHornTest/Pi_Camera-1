@@ -4,6 +4,14 @@ All notable changes to PI Camera are documented here.
 
 ---
 
+## [0.4.2] - 2026-07-19
+
+### Fixed
+
+- **Dead variable `recording_started` (#56)** — left over from the #43 `MIN_RECORD_SEC` cleanup; assigned three times but never read, causing ruff F841 and a broken CI pipeline on trunk
+
+---
+
 ## [0.4.1] - 2026-07-19
 
 ### Fixed
