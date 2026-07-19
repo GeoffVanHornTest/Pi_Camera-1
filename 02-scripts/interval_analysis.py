@@ -38,10 +38,9 @@ def parse_timestamp(clip):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found.")
@@ -61,7 +60,7 @@ def main():
     current_cluster = [entries[0]]
 
     for i in range(1, len(entries)):
-        gap = (entries[i][1] - entries[i-1][1]).total_seconds()
+        gap = (entries[i][1] - entries[i - 1][1]).total_seconds()
         if gap <= CLUSTER_GAP_SEC:
             current_cluster.append(entries[i])
         else:
@@ -76,15 +75,16 @@ def main():
             clip_cluster[clip] = (cid + 1, len(cluster))
 
     print(
-        f"\n{'Clip':<42} {'prev_gap':>8}  {'next_gap':>8}"
-        f"  {'cluster':>7}  {'size':>4}  in_cluster"
+        f"\n{'Clip':<42} {'prev_gap':>8}  {'next_gap':>8}  {'cluster':>7}  {'size':>4}  in_cluster"
     )
     print("-" * 88)
 
     rows = []
     for i, (clip, ts) in enumerate(entries):
-        prev_gap = round((ts - entries[i-1][1]).total_seconds(), 1) if i > 0 else None
-        next_gap = round((entries[i+1][1] - ts).total_seconds(), 1) if i < len(entries)-1 else None
+        prev_gap = round((ts - entries[i - 1][1]).total_seconds(), 1) if i > 0 else None
+        next_gap = (
+            round((entries[i + 1][1] - ts).total_seconds(), 1) if i < len(entries) - 1 else None
+        )
         cid, csize = clip_cluster.get(clip, (0, 1))
         in_cluster = csize > 1
 
@@ -96,15 +96,17 @@ def main():
             f"  C{cid:>6}  {csize:>4}  {'YES' if in_cluster else 'no'}"
         )
 
-        rows.append({
-            "clip": clip,
-            "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
-            "interval_from_prev_sec": prev_gap if prev_gap is not None else "",
-            "interval_to_next_sec": next_gap if next_gap is not None else "",
-            "cluster_id": cid,
-            "cluster_size": csize,
-            "in_cluster": in_cluster,
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "interval_from_prev_sec": prev_gap if prev_gap is not None else "",
+                "interval_to_next_sec": next_gap if next_gap is not None else "",
+                "cluster_id": cid,
+                "cluster_size": csize,
+                "in_cluster": in_cluster,
+            }
+        )
 
     # summarise clusters
     print(f"\nClusters (>{CLUSTER_GAP_SEC}s gap = new cluster):")
@@ -112,14 +114,23 @@ def main():
         start = cluster[0][1].strftime("%H:%M:%S")
         end = cluster[-1][1].strftime("%H:%M:%S")
         span = round((cluster[-1][1] - cluster[0][1]).total_seconds(), 0)
-        print(f"  C{cid+1}: {len(cluster)} clips  {start}→{end}  ({span:.0f}s span)")
+        print(f"  C{cid + 1}: {len(cluster)} clips  {start}→{end}  ({span:.0f}s span)")
 
     ts_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(clips_dir, f"interval_analysis_{ts_str}.csv")
     with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["clip","timestamp","interval_from_prev_sec",
-                                                "interval_to_next_sec","cluster_id",
-                                                "cluster_size","in_cluster"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "clip",
+                "timestamp",
+                "interval_from_prev_sec",
+                "interval_to_next_sec",
+                "cluster_id",
+                "cluster_size",
+                "in_cluster",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nCSV saved: {out}")

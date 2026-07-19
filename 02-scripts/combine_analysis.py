@@ -87,15 +87,17 @@ def main():
         else:
             combined = "AMBIGUOUS"
 
-        rows.append({
-            "clip": clip,
-            "duration_sec": duration,
-            "gap_T5k": gap_t5k,
-            "gap_ratio": gap_ratio,
-            "reflection_pct": reflect_pct,
-            "verdict": verdict,
-            "combined_verdict": combined,
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "duration_sec": duration,
+                "gap_T5k": gap_t5k,
+                "gap_ratio": gap_ratio,
+                "reflection_pct": reflect_pct,
+                "verdict": verdict,
+                "combined_verdict": combined,
+            }
+        )
 
         print(
             f"{clip:<42} {duration:>5.1f}s  {gap_t5k:>6.1f}s"

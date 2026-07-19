@@ -8,6 +8,8 @@ theme:
 
 nav:
   - Home: index.md
+  - Motion Detection & Filtering: detection.md
+  - Clip Timing & Ring Buffer: clip-timing.md
   - API Reference: api.md
   - Analysis Scripts: analysis.md
 

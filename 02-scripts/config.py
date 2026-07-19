@@ -71,6 +71,20 @@ MIN_CONSECUTIVE_FRAMES = 3
 MIN_BLOB_COHERENCE = 0.30
 CENTROID_HISTORY_LEN = 10
 
+# --- Pre-record ring buffer ---
+# PRE_ROLL_SEC is how many seconds of footage to buffer continuously so that
+# the start of a motion event is captured even though recording begins after
+# the trigger. The circular output keeps this much H264 data in memory at all
+# times; when a clip starts, the buffer is flushed to the file first.
+#
+# VIDEO_BITRATE_BPS is the H264 encoder target bitrate in bits-per-second.
+# Setting this explicitly avoids picamera2's low default (~1 Mbps).
+# 4 Mbps gives good detail at 1080p while keeping file sizes reasonable.
+# Note: CircularOutput buffersize is in frames (not bytes), so buffer duration
+# is controlled by PRE_ROLL_SEC * FPS, not by this bitrate.
+PRE_ROLL_SEC = 5
+VIDEO_BITRATE_BPS = 4_000_000
+
 # --- Recording ---
 # MIN_RECORD_SEC is the minimum clip duration after motion is first detected.
 # Brief gaps in motion within this window are ignored — the recording keeps

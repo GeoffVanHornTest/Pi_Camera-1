@@ -86,7 +86,7 @@ def score_clip(gap, ref, heat, bright, dur, interval):
     in_cluster = safe_bool(interval.get("in_cluster", False))
     if in_cluster:
         points += 1
-        reasons.append(f"cluster_size={interval.get('cluster_size','?')}")
+        reasons.append(f"cluster_size={interval.get('cluster_size', '?')}")
 
     reflect_pct = safe_float(ref.get("reflection_pct", 0))
     if reflect_pct > 50:
@@ -111,30 +111,41 @@ def score_clip(gap, ref, heat, bright, dur, interval):
 
 
 def main():
-    gap_path    = latest("combined_analysis_*.csv")
-    ref_path    = latest("reflection_analysis_*.csv")
-    heat_path   = latest("heatmap_analysis_*.csv")
+    gap_path = latest("combined_analysis_*.csv")
+    ref_path = latest("reflection_analysis_*.csv")
+    heat_path = latest("heatmap_analysis_*.csv")
     bright_path = latest("brightness_trajectory_*.csv")
-    dur_path    = latest("duration_stats_*.csv")
-    int_path    = latest("interval_analysis_*.csv")
+    dur_path = latest("duration_stats_*.csv")
+    int_path = latest("interval_analysis_*.csv")
 
     print("Input files:")
-    for label, path in [("combined", gap_path), ("reflection", ref_path),
-                        ("heatmap", heat_path), ("brightness", bright_path),
-                        ("duration", dur_path), ("interval", int_path)]:
+    for label, path in [
+        ("combined", gap_path),
+        ("reflection", ref_path),
+        ("heatmap", heat_path),
+        ("brightness", bright_path),
+        ("duration", dur_path),
+        ("interval", int_path),
+    ]:
         print(f"  {label:<12} {os.path.basename(path) if path else 'NOT FOUND'}")
 
-    gaps      = read_csv(gap_path)
-    refs      = read_csv(ref_path)
-    heats     = read_csv(heat_path)
-    brights   = read_csv(bright_path)
-    durs      = read_csv(dur_path)
+    gaps = read_csv(gap_path)
+    refs = read_csv(ref_path)
+    heats = read_csv(heat_path)
+    brights = read_csv(bright_path)
+    durs = read_csv(dur_path)
     intervals = read_csv(int_path)
 
-    all_clips = sorted(set(
-        list(gaps.keys()) + list(refs.keys()) + list(heats.keys()) +
-        list(brights.keys()) + list(durs.keys()) + list(intervals.keys())
-    ))
+    all_clips = sorted(
+        set(
+            list(gaps.keys())
+            + list(refs.keys())
+            + list(heats.keys())
+            + list(brights.keys())
+            + list(durs.keys())
+            + list(intervals.keys())
+        )
+    )
 
     print(f"\n{'Clip':<42} {'Score':>5}  {'Verdict':<16}  Reasons")
     print("-" * 110)
@@ -145,33 +156,49 @@ def main():
         if not clip.endswith(".mp4"):
             continue
         score, verdict, reasons = score_clip(
-            gaps.get(clip, {}), refs.get(clip, {}),
-            heats.get(clip, {}), brights.get(clip, {}),
-            durs.get(clip, {}), intervals.get(clip, {}),
+            gaps.get(clip, {}),
+            refs.get(clip, {}),
+            heats.get(clip, {}),
+            brights.get(clip, {}),
+            durs.get(clip, {}),
+            intervals.get(clip, {}),
         )
         verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
         print(f"{clip:<42} {score:>5}  {verdict:<16}  {reasons}")
-        rows.append({
-            "clip": clip,
-            "score": score,
-            "verdict": verdict,
-            "reasons": reasons,
-            "gap_ratio": gaps.get(clip, {}).get("gap_ratio", ""),
-            "wall_zone_pct": heats.get(clip, {}).get("wall_zone_pct", ""),
-            "brightness_class": brights.get(clip, {}).get("brightness_class", ""),
-            "mb_per_sec": durs.get(clip, {}).get("mb_per_sec", ""),
-            "in_cluster": intervals.get(clip, {}).get("in_cluster", ""),
-            "reflection_pct": refs.get(clip, {}).get("reflection_pct", ""),
-            "duration_class": durs.get(clip, {}).get("duration_class", ""),
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "score": score,
+                "verdict": verdict,
+                "reasons": reasons,
+                "gap_ratio": gaps.get(clip, {}).get("gap_ratio", ""),
+                "wall_zone_pct": heats.get(clip, {}).get("wall_zone_pct", ""),
+                "brightness_class": brights.get(clip, {}).get("brightness_class", ""),
+                "mb_per_sec": durs.get(clip, {}).get("mb_per_sec", ""),
+                "in_cluster": intervals.get(clip, {}).get("in_cluster", ""),
+                "reflection_pct": refs.get(clip, {}).get("reflection_pct", ""),
+                "duration_class": durs.get(clip, {}).get("duration_class", ""),
+            }
+        )
 
     print(f"\nVerdict summary: {verdict_counts}")
     print(f"Total clips: {len(rows)}")
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(config.CLIPS_DIR, f"cross_analysis_{ts}.csv")
-    fieldnames = ["clip","score","verdict","reasons","gap_ratio","wall_zone_pct",
-                  "brightness_class","mb_per_sec","in_cluster","reflection_pct","duration_class"]
+    fieldnames = [
+        "clip",
+        "score",
+        "verdict",
+        "reasons",
+        "gap_ratio",
+        "wall_zone_pct",
+        "brightness_class",
+        "mb_per_sec",
+        "in_cluster",
+        "reflection_pct",
+        "duration_class",
+    ]
     with open(out, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

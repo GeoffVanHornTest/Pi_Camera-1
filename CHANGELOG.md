@@ -4,6 +4,32 @@ All notable changes to PI Camera are documented here.
 
 ---
 
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- **Pre-record ring buffer** — `CircularOutput` runs continuously; every clip automatically includes `PRE_ROLL_SEC = 5s` of footage from before the trigger point (issue #27)
+  - Effective pre-roll ~3–5s due to H264 keyframe alignment (2s default iperiod); documented in issue #31
+- **Watchdog thread** — `threading.Timer` fires after `MAX_RECORD_SEC` independent of `get_frame()` latency, enforcing the clip cap even if the camera stalls (issue #23)
+- `verify_timing.py` — post-run validation script; checks pre-roll, clip duration, and watchdog split behaviour across a recorded dataset
+- `run_test.sh` — stop-after-N-clips test helper for controlled field sessions
+- MkDocs pages: **Motion Detection & Filtering** and **Clip Timing & Ring Buffer**
+
+### Fixed
+
+- `CircularOutput.fileoutput` rejected `FfmpegOutput` with `RuntimeError: Must pass io.BufferedIOBase` — every trigger silently failed (issue #30); fixed by writing to a `.h264` file handle instead
+- CircularOutput flushed without guaranteed SPS/PPS header at stream start — ffmpeg pipe exited immediately, corrupting the MP4 and crashing picamera2's encoder thread, stopping all subsequent detection (issue #33); fixed by writing to a named `.h264` file and converting with `subprocess.run()` after close
+- `H264Encoder` default bitrate (~1 Mbps) mismatched assumed 10 Mbps, producing 50s of buffer instead of 5s (issue #31); explicit `VIDEO_BITRATE_BPS = 4_000_000` added to config
+- `CircularOutput(buffersize=...)` unit is frames, not bytes — bytes-based calculation produced 2.5 million frames (~23 hours of buffer); corrected to `PRE_ROLL_SEC * FPS = 150` frames (issue #31)
+- `stop_recording()` `_proc.wait()` had no timeout — blocked main loop indefinitely during watchdog clip split, preventing second clip from starting (issue #32); resolved by switching to `subprocess.run(..., timeout=30)`
+
+### Changed
+
+- Camera output pipeline: CircularOutput → `.h264` file → `ffmpeg -c:v copy` → `.mp4` (replaces pipe-to-ffmpeg approach)
+- `VIDEO_BITRATE_BPS` added to `config.py`; passed to `H264Encoder(bitrate=...)` to avoid picamera2's low default
+
+---
+
 ## [0.3.0] - 2026-07-18
 
 ### Added

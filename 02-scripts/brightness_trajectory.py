@@ -70,9 +70,11 @@ def analyze(filepath):
                 max_spike_pct = delta
                 spike_at_sec = seconds[i]
 
-    sustained_variation = round(float(np.mean([
-        abs(means[i] - means[i-1]) for i in range(1, len(means))
-    ])), 2) if len(means) > 1 else 0
+    sustained_variation = (
+        round(float(np.mean([abs(means[i] - means[i - 1]) for i in range(1, len(means))])), 2)
+        if len(means) > 1
+        else 0
+    )
 
     # classify
     if max_spike_pct > 0.15 and spike_at_sec <= 3:
@@ -97,10 +99,9 @@ def analyze(filepath):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found.")
@@ -118,22 +119,48 @@ def main():
         result = analyze(path)
         if result is None:
             print(f"{clip:<42}  (unreadable)")
-            rows.append({"clip": clip, **{k: "N/A" for k in
-                ["duration_sec","initial_brightness","max_brightness",
-                 "max_spike_pct","spike_at_sec","sustained_variation","brightness_class"]}})
+            rows.append(
+                {
+                    "clip": clip,
+                    **{
+                        k: "N/A"
+                        for k in [
+                            "duration_sec",
+                            "initial_brightness",
+                            "max_brightness",
+                            "max_spike_pct",
+                            "spike_at_sec",
+                            "sustained_variation",
+                            "brightness_class",
+                        ]
+                    },
+                }
+            )
             continue
 
-        print(f"{clip:<42} {result['initial_brightness']:>5.1f}  {result['max_brightness']:>5.1f}  "
-              f"{result['max_spike_pct']:>6.1f}%  {result['spike_at_sec']:>4}  "
-              f"{result['sustained_variation']:>9.2f}  {result['brightness_class']}")
+        print(
+            f"{clip:<42} {result['initial_brightness']:>5.1f}  {result['max_brightness']:>5.1f}  "
+            f"{result['max_spike_pct']:>6.1f}%  {result['spike_at_sec']:>4}  "
+            f"{result['sustained_variation']:>9.2f}  {result['brightness_class']}"
+        )
         rows.append({"clip": clip, **result})
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(clips_dir, f"brightness_trajectory_{ts}.csv")
     with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["clip","duration_sec","initial_brightness",
-                                                "max_brightness","max_spike_pct","spike_at_sec",
-                                                "sustained_variation","brightness_class"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "clip",
+                "duration_sec",
+                "initial_brightness",
+                "max_brightness",
+                "max_spike_pct",
+                "spike_at_sec",
+                "sustained_variation",
+                "brightness_class",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nCSV saved: {out}")

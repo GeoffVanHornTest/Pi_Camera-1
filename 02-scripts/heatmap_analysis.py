@@ -90,10 +90,9 @@ def analyze(filepath):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found.")
@@ -108,23 +107,56 @@ def main():
         result = analyze(path)
         if result is None:
             print(f"{clip:<42}  (unreadable or no motion)")
-            rows.append({"clip": clip, **{k: "N/A" for k in
-                ["wall_zone_pct","person_zone_pct","peak_y_pct","peak_x_pct","motion_spread","zone","heatmap_png"]}})
+            rows.append(
+                {
+                    "clip": clip,
+                    **{
+                        k: "N/A"
+                        for k in [
+                            "wall_zone_pct",
+                            "person_zone_pct",
+                            "peak_y_pct",
+                            "peak_x_pct",
+                            "motion_spread",
+                            "zone",
+                            "heatmap_png",
+                        ]
+                    },
+                }
+            )
             continue
 
-        zone = "WALL" if result["wall_zone_pct"] > 60 else \
-               "MIXED" if result["wall_zone_pct"] > 30 else "PERSON_ZONE"
+        zone = (
+            "WALL"
+            if result["wall_zone_pct"] > 60
+            else "MIXED"
+            if result["wall_zone_pct"] > 30
+            else "PERSON_ZONE"
+        )
 
-        print(f"{clip:<42} {result['wall_zone_pct']:>5.1f}%  {result['person_zone_pct']:>6.1f}%  "
-              f"{result['peak_y_pct']:>6.3f}  {result['motion_spread']:>6.3f}  {zone}")
+        print(
+            f"{clip:<42} {result['wall_zone_pct']:>5.1f}%  {result['person_zone_pct']:>6.1f}%  "
+            f"{result['peak_y_pct']:>6.3f}  {result['motion_spread']:>6.3f}  {zone}"
+        )
 
         rows.append({"clip": clip, **result, "zone": zone})
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(clips_dir, f"heatmap_analysis_{ts}.csv")
     with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["clip","wall_zone_pct","person_zone_pct",
-                                                "peak_y_pct","peak_x_pct","motion_spread","zone","heatmap_png"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "clip",
+                "wall_zone_pct",
+                "person_zone_pct",
+                "peak_y_pct",
+                "peak_x_pct",
+                "motion_spread",
+                "zone",
+                "heatmap_png",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nCSV saved: {out}")
