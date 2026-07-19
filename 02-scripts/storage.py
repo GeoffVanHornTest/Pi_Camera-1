@@ -58,7 +58,9 @@ def save_snapshot(frame):
         str: The path where the snapshot was saved.
     """
     path = get_snapshot_path()
-    cv2.imwrite(path, frame)
+    ok = cv2.imwrite(path, frame)
+    if not ok:
+        raise RuntimeError(f"cv2.imwrite failed — could not write snapshot to {path}")
     return path
 
 

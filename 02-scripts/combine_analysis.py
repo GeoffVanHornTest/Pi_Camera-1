@@ -104,6 +104,10 @@ def main():
             f"  {gap_ratio:>9.3f}  {reflect_pct:>7.1f}%  {verdict:<12}  {combined}"
         )
 
+    if not rows:
+        print("No clips matched both datasets — nothing to save.")
+        return
+
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(config.CLIPS_DIR, f"combined_analysis_{ts}.csv")
     with open(out, "w", newline="") as f:

@@ -1,6 +1,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
 import numpy as np
@@ -48,3 +50,13 @@ def test_save_snapshot_writes_file(tmp_path, monkeypatch):
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     path = storage.save_snapshot(frame)
     assert os.path.exists(path)
+
+
+def test_save_snapshot_raises_if_imwrite_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    monkeypatch.setattr(storage, "get_snapshot_path", lambda: str(tmp_path / "snap.jpg"))
+    monkeypatch.setattr(storage.cv2, "imwrite", lambda *a, **kw: False)
+
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    with pytest.raises(RuntimeError, match="cv2.imwrite failed"):
+        storage.save_snapshot(frame)

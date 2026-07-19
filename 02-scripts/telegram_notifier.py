@@ -18,12 +18,15 @@ def send_photo(image_path, caption="Motion detected!"):
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
     try:
         with open(image_path, "rb") as f:
-            requests.post(
+            resp = requests.post(
                 url,
                 data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
                 files={"photo": f},
                 timeout=15,
             )
+        body = resp.json()
+        if not body.get("ok"):
+            print(f"[telegram] send_photo API error: {body.get('description', body)}")
     except Exception as e:
         print(f"[telegram] send_photo failed: {e}")
 
@@ -36,10 +39,13 @@ def send_message(text):
     """
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
-        requests.post(
+        resp = requests.post(
             url,
             data={"chat_id": config.TELEGRAM_CHAT_ID, "text": text},
             timeout=15,
         )
+        body = resp.json()
+        if not body.get("ok"):
+            print(f"[telegram] send_message API error: {body.get('description', body)}")
     except Exception as e:
         print(f"[telegram] send_message failed: {e}")
