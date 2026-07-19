@@ -28,12 +28,12 @@ uv venv --system-site-packages
 uv sync --dev
 
 # Copy the credentials template and fill in your values
-cp 02-scripts/.env.example 02-scripts/.env   # or create .env manually
+cp .env.example .env   # then edit .env with your credentials
 ```
 
 ### `.env` file
 
-Create `02-scripts/.env` with the following keys:
+Create `.env` at the repo root (the directory you cloned into) with the following keys:
 
 ```
 TELEGRAM_BOT_TOKEN=your_bot_token_from_BotFather
