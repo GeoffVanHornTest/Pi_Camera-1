@@ -77,24 +77,15 @@ PRE_ROLL_SEC = 8
 VIDEO_BITRATE_BPS = 2_500_000
 
 # --- Recording ---
-# MIN_RECORD_SEC is a minimum elapsed-time gate before the post-motion stop
-# condition is checked. At current values (15s) it has no practical effect
-# because POST_MOTION_BUFFER_SEC (20s) > MIN_RECORD_SEC — the buffer condition
-# is never checked until MIN_RECORD_SEC has already elapsed. The true minimum
-# clip duration is POST_MOTION_BUFFER_SEC. MIN_RECORD_SEC would only matter if
-# it were set above POST_MOTION_BUFFER_SEC (e.g. MIN_RECORD_SEC = 30 for a
-# guaranteed 30s minimum regardless of when motion stops).
-#
 # POST_MOTION_BUFFER_SEC is how long motion must be continuously absent before
-# the clip is finalised. Acts as the tail of the clip. This is the effective
-# minimum clip duration at current values.
+# the clip is finalised. This is the effective minimum clip duration — recording
+# continues for this many seconds after the last detected motion frame.
 #
 # MAX_RECORD_SEC caps a single clip. If motion continues beyond this point
 # the clip is closed, uploaded, and a new one starts immediately.
 #
 # CLIPS_DIR is the folder where video files are saved, anchored to the
 # project root regardless of which directory the script is run from.
-MIN_RECORD_SEC = 15
 POST_MOTION_BUFFER_SEC = 20
 MAX_RECORD_SEC = 120
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -119,7 +119,6 @@ def main():
             print(f"Motion detected — recording to {filepath}")
 
         if currently_recording:
-            time_recording = now - recording_started
             time_since_motion = now - motion_last_seen
 
             if _split_event.is_set():
@@ -142,10 +141,7 @@ def main():
                 motion_last_seen = now
                 _arm_watchdog()
 
-            elif (
-                time_recording >= config.MIN_RECORD_SEC
-                and time_since_motion >= config.POST_MOTION_BUFFER_SEC
-            ):
+            elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                 clip_to_upload = filepath
                 filepath = None
                 currently_recording = False
