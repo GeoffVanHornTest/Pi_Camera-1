@@ -113,7 +113,12 @@ def main():
             camera.start_recording(filepath)
             _arm_watchdog()
             snapshot = storage.save_snapshot(frame)
-            telegram_notifier.send_photo(snapshot, caption="Motion detected!")
+            threading.Thread(
+                target=telegram_notifier.send_photo,
+                args=(snapshot,),
+                kwargs={"caption": "Motion detected!"},
+                daemon=True,
+            ).start()
             currently_recording = True
             motion_last_seen = now
             print(f"Motion detected — recording to {filepath}")
