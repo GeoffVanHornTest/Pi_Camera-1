@@ -5,6 +5,8 @@
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
+import signal
+import sys
 import threading
 import time
 
@@ -148,11 +150,18 @@ def main():
                 _finish_clip(clip_to_upload)
 
 
+def _shutdown():
+    """Shared cleanup path for SIGTERM and KeyboardInterrupt."""
+    print("\nStopping PI Camera...")
+    _cancel_watchdog()
+    camera.close()
+    print("Camera released. Goodbye.")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, lambda *_: _shutdown())
     try:
         main()
     except KeyboardInterrupt:
-        print("\nStopping PI Camera...")
-        _cancel_watchdog()
-        camera.close()
-        print("Camera released. Goodbye.")
+        _shutdown()
