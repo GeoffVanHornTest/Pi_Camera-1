@@ -76,10 +76,13 @@ def _log_clip_quality(mp4_path, expected_sec):
         if r.returncode != 0:
             return
         actual_sec = float(r.stdout.strip())
-        drop_pct = 100.0 * (1.0 - actual_sec / expected_sec)
+        # The MP4 includes PRE_ROLL_SEC of pre-trigger footage from the ring
+        # buffer, so add it to the wall-clock baseline before comparing.
+        expected_total = expected_sec + config.PRE_ROLL_SEC
+        drop_pct = 100.0 * (1.0 - actual_sec / expected_total)
         label = "drop" if drop_pct > 0 else "gain"
         print(
-            f"[camera] clip duration: {actual_sec:.1f}s / {expected_sec:.1f}s expected"
+            f"[camera] clip duration: {actual_sec:.1f}s / {expected_total:.1f}s expected"
             f" ({drop_pct:+.1f}% {label})"
         )
     except (subprocess.TimeoutExpired, ValueError, ZeroDivisionError):
