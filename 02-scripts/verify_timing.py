@@ -1,11 +1,12 @@
-"""verify_timing.py — Post-run validation of feature/timing-fixes behavior.
+"""verify_timing.py — Post-run validation of clip timing behavior.
 
 Verifies two hardware-dependent behaviors without needing the camera:
 
-  Test 1 — FfmpegOutput compatibility
+  Test 1 — MP4 validity
       Confirm each clip is a readable, valid MP4 with a plausible frame count.
-      If FfmpegOutput doesn't work as CircularOutput.fileoutput, clips will be
-      unreadable or have 0 frames.
+      Clips are recorded by flushing CircularOutput to a .h264 file, then
+      converting with 'ffmpeg -c:v copy'. An unreadable clip indicates a
+      failed conversion (see issue #34).
 
   Test 2 — CircularOutput pre-roll (buffer survival)
       For each clip:
@@ -15,12 +16,16 @@ Verifies two hardware-dependent behaviors without needing the camera:
         - actual_duration     = frame_count / fps from cv2
         - preroll_detected    = actual_duration - expected_no_preroll
 
-      If CircularOutput.stop() keeps the buffer alive:
+      If CircularOutput keeps the ring buffer alive between clips:
         preroll_detected ≈ PRE_ROLL_SEC  for every clip including post-gap clips
 
-      If CircularOutput.stop() clears the buffer:
+      If CircularOutput clears the buffer on stop():
         preroll_detected ≈ 0             for clips that follow a previous clip
         (first clip of the session may still show pre-roll)
+
+      Note: effective pre-roll is typically 3–5s rather than PRE_ROLL_SEC (5s)
+      due to H264 keyframe alignment — CircularOutput discards frames until the
+      first IDR keyframe (default 2s interval). See issue #31.
 
   Consecutive-clip check
       Explicitly compares pre-roll on the first vs later clips. A drop from
@@ -80,7 +85,7 @@ def verify_clip(filepath):
     # Test 1: can cv2 read the file?
     actual = video_duration(filepath)
     if actual is None:
-        r["note"] = "unreadable — possible FfmpegOutput incompatibility"
+        r["note"] = "unreadable — ffmpeg conversion may have failed (see issue #34)"
         return r
     r["mp4_valid"] = True
     r["actual_sec"] = round(actual, 1)
@@ -169,15 +174,14 @@ def main():
         if first_ok and not later_ok:
             print(
                 "  ⚠ Consecutive-clip check FAILED: first clip has pre-roll, later clips do not.\n"
-                "    CircularOutput.stop() is likely clearing the buffer.\n"
-                "    Fix: swap fileoutput between clips without calling stop()/start()."
+                "    CircularOutput.stop() is likely clearing the buffer between clips."
             )
         elif first_ok and later_ok:
             print("  ✓ Consecutive-clip check PASSED: pre-roll maintained across all clips.")
         elif not first_ok:
             print(
-                "  ✗ Pre-roll absent on first clip — buffer may not be filling before trigger,\n"
-                "    or FfmpegOutput flush from CircularOutput is not working."
+                "  ✗ Pre-roll absent on first clip — buffer may not be filling before trigger.\n"
+                "    Check that _camera.start_recording() is called before any motion event."
             )
 
     # Summary
@@ -191,7 +195,7 @@ def main():
     )
 
     print("=" * 65)
-    print(f"Test 1  FfmpegOutput (MP4 validity):  {len(valid)}/{len(results)} readable")
+    print(f"Test 1  MP4 validity:                  {len(valid)}/{len(results)} readable")
     if preroll_results:
         print(
             f"Test 2  CircularOutput pre-roll:       "

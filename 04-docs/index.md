@@ -1,6 +1,6 @@
 # PI Camera
 
-A Raspberry Pi night vision motion camera with automated Gmail alerts.
+A Raspberry Pi night vision motion camera with Telegram alerts and Dropbox upload.
 
 ## What it does
 

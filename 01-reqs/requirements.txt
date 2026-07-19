@@ -1,4 +1,14 @@
+# pip fallback reference — pyproject.toml is the authoritative dependency list.
+# Use 'uv sync --dev' for normal setup. This file exists as a fallback for
+# environments without uv.
+#
 # picamera2 must be installed via apt, not pip:
 #   sudo apt install python3-picamera2
+#
+# ffmpeg must be installed via apt:
+#   sudo apt install ffmpeg
+
 opencv-python-headless
 python-dotenv
+requests
+dropbox

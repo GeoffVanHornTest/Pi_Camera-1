@@ -3,6 +3,13 @@ Description=PI Camera motion detection
 After=network.target
 
 [Service]
+# NOTE: During algorithm calibration the deployed /etc/systemd/system/pi-camera.service
+# uses ExecStart=/bin/true and Restart commented out to prevent the service from
+# competing with manual test sessions. This file contains the production values.
+# Re-enable in /etc/systemd/system/ once calibration is complete:
+#   sudo systemctl edit --force pi-camera   # or edit the unit directly
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pi-camera
 ExecStart=/home/pi/Desktop/PI_Camera/.venv/bin/python /home/pi/Desktop/PI_Camera/02-scripts/main.py
 WorkingDirectory=/home/pi/Desktop/PI_Camera/02-scripts
 Restart=always
