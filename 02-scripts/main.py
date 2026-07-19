@@ -93,7 +93,6 @@ def main():
     filepath = None
     last_cleanup = 0
     motion_last_seen = 0.0
-    recording_started = 0.0
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
@@ -116,7 +115,6 @@ def main():
             snapshot = storage.save_snapshot(frame)
             telegram_notifier.send_photo(snapshot, caption="Motion detected!")
             currently_recording = True
-            recording_started = now
             motion_last_seen = now
             print(f"Motion detected — recording to {filepath}")
 
@@ -139,7 +137,6 @@ def main():
 
                 camera.split_recording(filepath, on_complete=_upload_and_notify_split)
                 motion_detector.reset_motion_state()
-                recording_started = now
                 motion_last_seen = now
                 _arm_watchdog()
 
