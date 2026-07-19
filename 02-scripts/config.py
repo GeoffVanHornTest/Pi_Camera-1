@@ -53,6 +53,24 @@ MOTION_THRESHOLD_NIGHT = 25000
 BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
 
+# --- Layered motion filters ---
+# MIN_CONSECUTIVE_FRAMES: how many back-to-back frames must pass all blob checks
+# before detect() returns True. Flickering leaves rarely sustain N consecutive
+# frames; a walking person typically does. Start at 3 (≈0.1s at 30 fps).
+#
+# MIN_BLOB_COHERENCE: fraction of total foreground pixels that must belong to
+# the single largest blob. A person is one large shape (coherence near 1.0);
+# scattered leaf specks have many small blobs (coherence near 0.0). 0.3 means
+# "the biggest blob must account for at least 30% of all moving pixels".
+#
+# CENTROID_HISTORY_LEN: how many past centroid positions to keep in memory.
+# Used for the translation-vs-oscillation discriminator: a person's centroid
+# moves steadily across the frame; windblown foliage oscillates back and forth.
+# Not yet a hard gate — infrastructure for the v0.3.x calibration step.
+MIN_CONSECUTIVE_FRAMES = 3
+MIN_BLOB_COHERENCE = 0.30
+CENTROID_HISTORY_LEN = 10
+
 # --- Recording ---
 # MIN_RECORD_SEC is the minimum clip duration after motion is first detected.
 # Brief gaps in motion within this window are ignored — the recording keeps

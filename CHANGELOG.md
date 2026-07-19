@@ -4,6 +4,22 @@ All notable changes to PI Camera are documented here.
 
 ---
 
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- **Layered motion filter pipeline** — two new filters sit between MOG2 and the recording trigger, dramatically reducing false positives (issues #25, #26)
+  - **Blob coherence gate** (`MIN_BLOB_COHERENCE = 0.30`): largest blob must account for ≥ 30% of total foreground pixels — a person scores 0.7–0.95; scattered foliage scores 0.05–0.20
+  - **Consecutive-frame gate** (`MIN_CONSECUTIVE_FRAMES = 3`): 3 unbroken frames must pass all blob checks before `detect()` returns `True` — single-frame flickers and brief glints cannot trigger a clip
+  - **Centroid history** (`CENTROID_HISTORY_LEN = 10`): centroid of the largest blob tracked over time; infrastructure for a future translation-vs-oscillation discriminator (not yet a hard gate)
+  - `reset_motion_state()` added — resets consecutive-frame counter and centroid history between events so the next trigger must earn its count from scratch
+
+### Changed
+
+- `detect()` now returns `(bool, frame)` tuple; callers updated accordingly
+
+---
+
 ## [0.2.0] - 2026-07-17
 
 ### Added

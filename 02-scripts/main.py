@@ -41,6 +41,7 @@ def _validate_config():
 def _finish_clip(filepath):
     """Stop recording, upload the clip, and send the Telegram link."""
     camera.stop_recording()
+    motion_detector.reset_motion_state()
     print("Recording stopped — uploading clip in background...")
 
     def _upload_and_notify(path):
