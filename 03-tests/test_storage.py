@@ -52,6 +52,54 @@ def test_save_snapshot_writes_file(tmp_path, monkeypatch):
     assert os.path.exists(path)
 
 
+def test_cleanup_removes_old_mp4(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    old_file = tmp_path / "motion_old.mp4"
+    old_file.write_text("x")
+    old_time = __import__("time").time() - (8 * 86400)
+    __import__("os").utime(str(old_file), (old_time, old_time))
+    storage.cleanup_old_clips(days=7)
+    assert not old_file.exists()
+
+
+def test_cleanup_keeps_recent_mp4(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    recent = tmp_path / "motion_recent.mp4"
+    recent.write_text("x")
+    storage.cleanup_old_clips(days=7)
+    assert recent.exists()
+
+
+def test_cleanup_removes_old_h264(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    orphan = tmp_path / "motion_old.h264"
+    orphan.write_text("x")
+    old_time = __import__("time").time() - 400
+    __import__("os").utime(str(orphan), (old_time, old_time))
+    storage.cleanup_old_clips(days=7)
+    assert not orphan.exists()
+
+
+def test_cleanup_keeps_active_h264(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    active = tmp_path / "motion_active.h264"
+    active.write_text("x")
+    storage.cleanup_old_clips(days=7)
+    assert active.exists()
+
+
+def test_cleanup_skips_subdirectories(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    subdir = tmp_path / "archive"
+    subdir.mkdir()
+    old_file = subdir / "motion_old.mp4"
+    old_file.write_text("x")
+    old_time = __import__("time").time() - (8 * 86400)
+    __import__("os").utime(str(old_file), (old_time, old_time))
+    storage.cleanup_old_clips(days=7)
+    assert old_file.exists()
+
+
 def test_save_snapshot_raises_if_imwrite_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
     monkeypatch.setattr(storage, "get_snapshot_path", lambda: str(tmp_path / "snap.jpg"))

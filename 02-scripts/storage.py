@@ -64,23 +64,29 @@ def save_snapshot(frame):
     return path
 
 
+_H264_ORPHAN_AGE_SEC = 300  # 5 min — long enough to never touch an in-flight conversion
+
+
 def cleanup_old_clips(days=7):
     """Delete clips and snapshots older than the given number of days.
 
     Only scans the top level of CLIPS_DIR — manually archived subdirectories
     (e.g. daytime-2026-07-14/) are skipped and are the operator's responsibility
-    to manage. Any orphaned .h264 files (evidence of a failed ffmpeg conversion)
-    are removed unconditionally regardless of age.
+    to manage. Orphaned .h264 files (evidence of a failed ffmpeg conversion) are
+    removed only when older than _H264_ORPHAN_AGE_SEC so that an in-flight
+    conversion is never unlinked mid-write (#66).
 
     Args:
         days: Files older than this many days are removed. Defaults to 7.
     """
-    cutoff = time.time() - (days * 86400)
+    now = time.time()
+    cutoff = now - (days * 86400)
     for filename in os.listdir(config.CLIPS_DIR):
         path = os.path.join(config.CLIPS_DIR, filename)
         if not os.path.isfile(path):
             continue
         if filename.endswith(".h264"):
-            os.remove(path)
+            if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+                os.remove(path)
         elif os.path.getmtime(path) < cutoff:
             os.remove(path)
