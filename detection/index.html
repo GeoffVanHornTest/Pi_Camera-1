@@ -11,23 +11,25 @@
       
       
       
+        <link rel="prev" href="..">
       
-        <link rel="next" href="detection/">
+      
+        <link rel="next" href="../clip-timing/">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>PI Camera</title>
+        <title>Motion Detection & Filtering - PI Camera</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
       
 
@@ -46,9 +48,9 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -66,7 +68,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#pi-camera" class="md-skip">
+        <a href="#motion-detection-filtering" class="md-skip">
           Skip to content
         </a>
       
@@ -82,7 +84,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="PI Camera" class="md-header__button md-logo" aria-label="PI Camera" data-md-component="logo">
+    <a href=".." title="PI Camera" class="md-header__button md-logo" aria-label="PI Camera" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Motion Detection & Filtering
             
           </span>
         </div>
@@ -192,7 +194,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="PI Camera" class="md-nav__button md-logo" aria-label="PI Camera" data-md-component="logo">
+    <a href=".." title="PI Camera" class="md-nav__button md-logo" aria-label="PI Camera" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -219,6 +221,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -238,7 +267,7 @@
   <span class="md-ellipsis">
     
   
-    Home
+    Motion Detection & Filtering
   
 
     
@@ -249,14 +278,14 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <a href="." class="md-nav__link md-nav__link--active">
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    Home
+    Motion Detection & Filtering
   
 
     
@@ -282,10 +311,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-it-does" class="md-nav__link">
+  <a href="#background-subtraction-mog2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What it does
+        Background subtraction — MOG2
       
     </span>
   </a>
@@ -293,10 +322,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#hardware" class="md-nav__link">
+  <a href="#day-night-threshold-switching" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hardware
+        Day / night threshold switching
       
     </span>
   </a>
@@ -304,10 +333,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#filter-1-large-blob-gate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start
+        Filter 1 — large-blob gate
       
     </span>
   </a>
@@ -315,10 +344,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#project-analysis" class="md-nav__link">
+  <a href="#filter-2-blob-coherence" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Project analysis
+        Filter 2 — blob coherence
       
     </span>
   </a>
@@ -326,10 +355,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#false-trigger-investigation" class="md-nav__link">
+  <a href="#filter-3-consecutive-frame-gate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        False trigger investigation
+        Filter 3 — consecutive-frame gate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#centroid-history-infrastructure-for-translation-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Centroid history — infrastructure for translation tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-cooldown-new_event_allowed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event cooldown — new_event_allowed()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filter-state-reset-between-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter state reset between events
       
     </span>
   </a>
@@ -351,34 +413,7 @@
   
   
     <li class="md-nav__item">
-      <a href="detection/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Motion Detection & Filtering
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="clip-timing/" class="md-nav__link">
+      <a href="../clip-timing/" class="md-nav__link">
         
   
   
@@ -405,7 +440,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/" class="md-nav__link">
+      <a href="../api/" class="md-nav__link">
         
   
   
@@ -432,7 +467,7 @@
   
   
     <li class="md-nav__item">
-      <a href="analysis/" class="md-nav__link">
+      <a href="../analysis/" class="md-nav__link">
         
   
   
@@ -479,10 +514,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-it-does" class="md-nav__link">
+  <a href="#background-subtraction-mog2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What it does
+        Background subtraction — MOG2
       
     </span>
   </a>
@@ -490,10 +525,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#hardware" class="md-nav__link">
+  <a href="#day-night-threshold-switching" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hardware
+        Day / night threshold switching
       
     </span>
   </a>
@@ -501,10 +536,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#filter-1-large-blob-gate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start
+        Filter 1 — large-blob gate
       
     </span>
   </a>
@@ -512,10 +547,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#project-analysis" class="md-nav__link">
+  <a href="#filter-2-blob-coherence" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Project analysis
+        Filter 2 — blob coherence
       
     </span>
   </a>
@@ -523,10 +558,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#false-trigger-investigation" class="md-nav__link">
+  <a href="#filter-3-consecutive-frame-gate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        False trigger investigation
+        Filter 3 — consecutive-frame gate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#centroid-history-infrastructure-for-translation-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Centroid history — infrastructure for translation tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-cooldown-new_event_allowed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event cooldown — new_event_allowed()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filter-state-reset-between-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter state reset between events
       
     </span>
   </a>
@@ -553,29 +621,92 @@
   
 
 
-<h1 id="pi-camera">PI Camera</h1>
-<p>A Raspberry Pi night vision motion camera with automated Gmail alerts.</p>
-<h2 id="what-it-does">What it does</h2>
-<ul>
-<li>Detects motion using OpenCV MOG2 background subtraction with day/night threshold switching</li>
-<li>Captures a snapshot when motion is detected</li>
-<li>Sends the snapshot instantly to a <strong>Telegram</strong> chat via Bot API</li>
-<li>Records a video clip of the motion event</li>
-<li>Uploads the finished clip to <strong>Dropbox</strong> and sends the share link via Telegram</li>
-</ul>
-<h2 id="hardware">Hardware</h2>
-<ul>
-<li>Raspberry Pi 4</li>
-<li>Arducam 5MP OV5647 Camera Module with IR LED (CSI interface)</li>
-</ul>
-<h2 id="quick-start">Quick start</h2>
-<p>See the <a href="https://github.com/GeoffVanHornTest/Pi_Camera-1">GitHub repository</a> for setup instructions.</p>
-<h2 id="project-analysis">Project analysis</h2>
-<p>A three-plan independent analysis of the codebase — what works, what doesn't, and the prioritised fix order.</p>
-<p><a href="plan-compare.html">View the Three-Plan Analysis</a></p>
-<h2 id="false-trigger-investigation">False trigger investigation</h2>
-<p>Diagnostic analysis of motion false triggers using an 8-script analysis suite. Includes confirmed false trigger deep-dive (08:15–08:50 empty-room window), failure mode breakdown, and scoring fix recommendations.</p>
-<p><a href="false-trigger-analysis.html">View the False Trigger Analysis</a></p>
+<h1 id="motion-detection-filtering">Motion Detection &amp; Filtering</h1>
+<p>The detector runs every frame in a four-stage pipeline. Each stage must pass before the next runs. Failure at any stage resets the consecutive-frame counter so short-lived noise cannot accumulate credit across interruptions.</p>
+<hr />
+<h2 id="background-subtraction-mog2">Background subtraction — MOG2</h2>
+<p>Every frame is passed through OpenCV's MOG2 (Mixture of Gaussians) background subtractor, which builds a statistical model of the scene over time and returns a foreground mask of pixels that have changed significantly.</p>
+<pre><code class="language-python">_bg_subtractor = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+fg_mask = _bg_subtractor.apply(frame)
+</code></pre>
+<p>Shadow detection is disabled — on an IR night-vision camera the shadow response is unreliable and adds noise. The foreground mask is then passed to <code>cv2.findContours()</code> to identify discrete moving regions (blobs).</p>
+<hr />
+<h2 id="day-night-threshold-switching">Day / night threshold switching</h2>
+<p>The area threshold applied to blobs is not fixed — it switches based on scene brightness:</p>
+<pre><code class="language-python">brightness = cv2.mean(frame)[0]
+threshold = MOTION_THRESHOLD_DAY if brightness &gt; BRIGHTNESS_THRESHOLD else MOTION_THRESHOLD_NIGHT
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Config key</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BRIGHTNESS_THRESHOLD</code></td>
+<td>60</td>
+<td>Mean pixel value (0–255) that separates day from night mode</td>
+</tr>
+<tr>
+<td><code>MOTION_THRESHOLD_DAY</code></td>
+<td>7 500 px²</td>
+<td>Minimum contour area in good light</td>
+</tr>
+<tr>
+<td><code>MOTION_THRESHOLD_NIGHT</code></td>
+<td>25 000 px²</td>
+<td>Minimum contour area in IR/dark mode</td>
+</tr>
+</tbody>
+</table>
+<p>The night threshold is significantly higher because IR LED flicker and increased sensor gain at low light produce a noisier foreground mask. Raising the threshold stops the detector treating that noise as motion.</p>
+<hr />
+<h2 id="filter-1-large-blob-gate">Filter 1 — large-blob gate</h2>
+<p>At least one contour in the foreground mask must exceed the active area threshold. Anything smaller — insects, sensor noise, compression artifacts — is discarded here.</p>
+<p>Failure resets <code>_consecutive_motion_frames</code> to zero and clears centroid history. A single-frame spike cannot survive into Filter 3.</p>
+<hr />
+<h2 id="filter-2-blob-coherence">Filter 2 — blob coherence</h2>
+<p>A person moving through the frame appears as one large, contiguous blob. Windblown foliage, reflections, or moving water scatter into many small disconnected specks with roughly equal areas.</p>
+<p>Coherence is defined as:</p>
+<pre><code>coherence = largest_blob_area / total_foreground_pixels
+</code></pre>
+<p>If coherence falls below <code>MIN_BLOB_COHERENCE</code> (default 0.30), the frame is rejected. The threshold means: "the single largest blob must account for at least 30% of all moving pixels." A person walking past typically scores 0.7–0.95; scattered leaf movement typically scores 0.05–0.20.</p>
+<p>Failure also resets the consecutive-frame counter.</p>
+<hr />
+<h2 id="filter-3-consecutive-frame-gate">Filter 3 — consecutive-frame gate</h2>
+<p>Even after passing Filters 1 and 2, a single frame is not enough to trigger a recording. The detector requires <code>MIN_CONSECUTIVE_FRAMES</code> (default 3) back-to-back frames to all pass both blob filters before returning <code>True</code>.</p>
+<p>At 30 fps, three consecutive frames is ~0.1 seconds. A person walking through the frame easily sustains this. A brief camera glitch, a single insect crossing the lens, or an isolated windblown leaf rarely does.</p>
+<p>The counter is incremented only on a successful pass. Any failure at Filter 1 or Filter 2 resets it to zero — the streak must be unbroken.</p>
+<hr />
+<h2 id="centroid-history-infrastructure-for-translation-tracking">Centroid history — infrastructure for translation tracking</h2>
+<p>For every frame that passes Filters 1 and 2, the centroid of the largest blob is computed and appended to a rolling history of length <code>CENTROID_HISTORY_LEN</code> (default 10):</p>
+<pre><code class="language-python">cx = int(M[&quot;m10&quot;] / M[&quot;m00&quot;])
+cy = int(M[&quot;m01&quot;] / M[&quot;m00&quot;])
+_centroid_history.append((cx, cy))
+</code></pre>
+<p>A person crossing the frame produces a centroid that moves steadily in one direction (translation). Windblown foliage or reflections produce a centroid that oscillates around a fixed point.</p>
+<p>This history is <strong>not yet a hard gate</strong> — it is tracked in preparation for a translation-vs-oscillation discriminator planned for a future calibration step. It does not affect whether the current frame triggers a recording.</p>
+<hr />
+<h2 id="event-cooldown-new_event_allowed">Event cooldown — <code>new_event_allowed()</code></h2>
+<p><code>detect()</code> returns raw per-frame motion state. A separate gate controls how often a new <em>recording event</em> can start:</p>
+<pre><code class="language-python">def new_event_allowed():
+    if now - _last_motion &gt; MOTION_COOLDOWN_SEC:
+        _last_motion = now
+        return True
+    return False
+</code></pre>
+<p><code>MOTION_COOLDOWN_SEC</code> (default 10s) must elapse after the previous event before a new clip and alert can be triggered. This is independent of clip recording — motion can be continuously detected within an active clip without resetting the cooldown.</p>
+<hr />
+<h2 id="filter-state-reset-between-events">Filter state reset between events</h2>
+<p>At the end of every recording session <code>reset_motion_state()</code> is called:</p>
+<pre><code class="language-python">def reset_motion_state():
+    _consecutive_motion_frames = 0
+    _centroid_history.clear()
+</code></pre>
+<p>This ensures the next event must earn its consecutive-frame count from scratch rather than inheriting leftover state from a previous clip. Without this, a long recording could exit with <code>_consecutive_motion_frames</code> already at 3, making the next trigger instant even if the new motion is marginal.</p>
 
 
 
@@ -625,10 +756,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

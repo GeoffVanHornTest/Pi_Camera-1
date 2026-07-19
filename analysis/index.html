@@ -249,6 +249,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Detection & Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clip-timing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clip Timing & Ring Buffer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../api/" class="md-nav__link">
         
   
@@ -951,7 +1005,7 @@ flags: list of triggered indicator names.</p>
         <span class="n">background_mean</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">background_pixels</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">motion_mean</span> <span class="o">&gt;</span> <span class="n">background_mean</span> <span class="o">*</span> <span class="mf">1.25</span><span class="p">:</span>
             <span class="n">score</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;bright-region(</span><span class="si">{</span><span class="n">motion_mean</span><span class="o">/</span><span class="n">background_mean</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">x)&quot;</span><span class="p">)</span>
+            <span class="n">flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;bright-region(</span><span class="si">{</span><span class="n">motion_mean</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">background_mean</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">x)&quot;</span><span class="p">)</span>
 
     <span class="c1"># 3. Centroid position and solidity of largest contour</span>
     <span class="n">contours</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">findContours</span><span class="p">(</span><span class="n">fg_mask</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">RETR_EXTERNAL</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">CHAIN_APPROX_SIMPLE</span><span class="p">)</span>
@@ -964,7 +1018,7 @@ flags: list of triggered indicator names.</p>
             <span class="n">cy</span> <span class="o">=</span> <span class="n">M</span><span class="p">[</span><span class="s2">&quot;m01&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">M</span><span class="p">[</span><span class="s2">&quot;m00&quot;</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">cy</span> <span class="o">&lt;</span> <span class="n">frame_height</span> <span class="o">*</span> <span class="n">CENTROID_UPPER_ZONE</span><span class="p">:</span>
                 <span class="n">score</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="n">flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;high-centroid(y=</span><span class="si">{</span><span class="n">cy</span><span class="o">/</span><span class="n">frame_height</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+                <span class="n">flags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;high-centroid(y=</span><span class="si">{</span><span class="n">cy</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">frame_height</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 
         <span class="n">hull</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">convexHull</span><span class="p">(</span><span class="n">largest</span><span class="p">)</span>
         <span class="n">hull_area</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">contourArea</span><span class="p">(</span><span class="n">hull</span><span class="p">)</span>
