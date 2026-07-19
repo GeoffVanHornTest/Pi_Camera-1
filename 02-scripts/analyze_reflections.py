@@ -27,10 +27,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 
 # --- Tunable scoring parameters ---
-BRIGHTNESS_SPIKE_PCT = 0.15   # brightness jump > 15% of previous = light event
-CENTROID_UPPER_ZONE  = 0.45   # centroid in top 45% of frame = wall zone
-SOLIDITY_THRESHOLD   = 0.45   # solidity < 0.45 = diffuse/irregular = reflection
-MIN_CONTOUR_AREA     = config.MOTION_THRESHOLD_DAY
+BRIGHTNESS_SPIKE_PCT = 0.15  # brightness jump > 15% of previous = light event
+CENTROID_UPPER_ZONE = 0.45  # centroid in top 45% of frame = wall zone
+SOLIDITY_THRESHOLD = 0.45  # solidity < 0.45 = diffuse/irregular = reflection
+MIN_CONTOUR_AREA = config.MOTION_THRESHOLD_DAY
 
 
 def score_frame(frame, fg_mask, prev_brightness, frame_height):
@@ -60,7 +60,7 @@ def score_frame(frame, fg_mask, prev_brightness, frame_height):
         background_mean = float(np.mean(background_pixels))
         if motion_mean > background_mean * 1.25:
             score += 1
-            flags.append(f"bright-region({motion_mean/background_mean:.2f}x)")
+            flags.append(f"bright-region({motion_mean / background_mean:.2f}x)")
 
     # 3. Centroid position and solidity of largest contour
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -73,7 +73,7 @@ def score_frame(frame, fg_mask, prev_brightness, frame_height):
             cy = M["m01"] / M["m00"]
             if cy < frame_height * CENTROID_UPPER_ZONE:
                 score += 1
-                flags.append(f"high-centroid(y={cy/frame_height:.0%})")
+                flags.append(f"high-centroid(y={cy / frame_height:.0%})")
 
         hull = cv2.convexHull(largest)
         hull_area = cv2.contourArea(hull)
@@ -91,16 +91,16 @@ def analyze(filepath):
     if not cap.isOpened():
         return None
 
-    fps      = cap.get(cv2.CAP_PROP_FPS) or 30
-    h        = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = n_frames / fps
 
     bg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
 
-    motion_frames      = 0
-    reflection_flags   = []   # (frame_sec, score, flags)
-    prev_brightness    = 0.0
+    motion_frames = 0
+    reflection_flags = []  # (frame_sec, score, flags)
+    prev_brightness = 0.0
 
     frame_idx = 0
     while True:
@@ -145,10 +145,9 @@ def verdict(motion_frames, reflection_flags):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found in", clips_dir)
@@ -163,11 +162,16 @@ def main():
         result = analyze(path)
         if result is None:
             print(f"{clip:<42}  (unreadable)")
-            rows.append({
-                "clip": clip, "duration_sec": "unreadable",
-                "motion_frames": "", "reflection_pct": "",
-                "verdict": "unreadable", "top_flags": "",
-            })
+            rows.append(
+                {
+                    "clip": clip,
+                    "duration_sec": "unreadable",
+                    "motion_frames": "",
+                    "reflection_pct": "",
+                    "verdict": "unreadable",
+                    "top_flags": "",
+                }
+            )
             continue
 
         duration, motion_frames, reflection_flags, n_frames = result
@@ -186,21 +190,24 @@ def main():
             for f in all_flags:
                 key = f.split("(")[0]
                 types[key] = types.get(key, 0) + 1
-            flag_summary = ", ".join(f"{k}×{v}" for k, v in
-                                     sorted(types.items(), key=lambda x: -x[1]))
+            flag_summary = ", ".join(
+                f"{k}×{v}" for k, v in sorted(types.items(), key=lambda x: -x[1])
+            )
 
         print(
             f"{clip:<42} {duration:>5.1f}s  {motion_frames:>6}fr"
             f"  {r_pct:>7.1f}%  {v:<12}  {flag_summary}"
         )
-        rows.append({
-            "clip": clip,
-            "duration_sec": round(duration, 1),
-            "motion_frames": motion_frames,
-            "reflection_pct": round(r_pct, 1),
-            "verdict": v,
-            "top_flags": flag_summary,
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "duration_sec": round(duration, 1),
+                "motion_frames": motion_frames,
+                "reflection_pct": round(r_pct, 1),
+                "verdict": v,
+                "top_flags": flag_summary,
+            }
+        )
 
     print()
     print(

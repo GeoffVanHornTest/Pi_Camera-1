@@ -9,7 +9,7 @@ _last_motion = 0
 
 # Filter state — reset between motion events via reset_motion_state().
 _consecutive_motion_frames = 0  # count of back-to-back frames that passed all blob checks
-_centroid_history = []          # ring buffer of (cx, cy) tuples for translation tracking
+_centroid_history = []  # ring buffer of (cx, cy) tuples for translation tracking
 
 
 def reset_motion_state():

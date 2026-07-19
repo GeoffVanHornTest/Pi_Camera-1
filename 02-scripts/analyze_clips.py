@@ -73,16 +73,15 @@ def analyze(filepath):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found in", clips_dir)
         return
 
-    header = f"{'Clip':<40} {'Dur':>6}  " + "  ".join(f"T={t//1000}k gap" for t in THRESHOLDS)
+    header = f"{'Clip':<40} {'Dur':>6}  " + "  ".join(f"T={t // 1000}k gap" for t in THRESHOLDS)
     print(header)
     print("-" * len(header))
 
@@ -92,18 +91,25 @@ def main():
         result = analyze(path)
         if result is None:
             print(f"{clip:<40}  (unreadable)")
-            rows.append({"clip": clip, "duration_sec": "unreadable",
-                         **{f"gap_T{t}": "unreadable" for t in THRESHOLDS}})
+            rows.append(
+                {
+                    "clip": clip,
+                    "duration_sec": "unreadable",
+                    **{f"gap_T{t}": "unreadable" for t in THRESHOLDS},
+                }
+            )
             continue
 
         duration, total_frames, fps, res = result
         gaps = "  ".join(f"{res[t]['max_gap_sec']:>9.1f}s" for t in THRESHOLDS)
         print(f"{clip:<40} {duration:>5.1f}s  {gaps}")
-        rows.append({
-            "clip": clip,
-            "duration_sec": round(duration, 1),
-            **{f"gap_T{t}": round(res[t]["max_gap_sec"], 1) for t in THRESHOLDS},
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "duration_sec": round(duration, 1),
+                **{f"gap_T{t}": round(res[t]["max_gap_sec"], 1) for t in THRESHOLDS},
+            }
+        )
 
     print()
     print("'gap' = longest continuous period with no motion above that threshold.")

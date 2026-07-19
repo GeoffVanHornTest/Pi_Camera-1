@@ -78,11 +78,10 @@ CENTROID_HISTORY_LEN = 10
 # times; when a clip starts, the buffer is flushed to the file first.
 #
 # VIDEO_BITRATE_BPS is the H264 encoder target bitrate in bits-per-second.
-# This MUST be set explicitly so the CircularOutput buffer size calculation
-# below is correct. If H264Encoder() is created with no bitrate argument
-# picamera2 uses a much lower default (~1 Mbps), causing the circular buffer
-# to hold 5× more footage than intended (e.g. 50s of pre-roll instead of 5s).
+# Setting this explicitly avoids picamera2's low default (~1 Mbps).
 # 4 Mbps gives good detail at 1080p while keeping file sizes reasonable.
+# Note: CircularOutput buffersize is in frames (not bytes), so buffer duration
+# is controlled by PRE_ROLL_SEC * FPS, not by this bitrate.
 PRE_ROLL_SEC = 5
 VIDEO_BITRATE_BPS = 4_000_000
 

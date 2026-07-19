@@ -26,6 +26,7 @@ def _warm_up():
 
 # --- Return-type tests ---
 
+
 def test_detect_returns_tuple():
     result = motion_detector.detect(static_frame())
     assert isinstance(result, tuple)
@@ -48,6 +49,7 @@ def test_detect_second_value_is_ndarray():
 
 # --- Static-scene tests ---
 
+
 def test_static_frame_does_not_trigger_motion():
     """MOG2 needs several frames to build its background model before it stabilises."""
     for _ in range(30):
@@ -56,6 +58,7 @@ def test_static_frame_does_not_trigger_motion():
 
 
 # --- Consecutive-frame gate tests (issue #26) ---
+
 
 def test_motion_requires_min_consecutive_frames():
     """detect() must return False until MIN_CONSECUTIVE_FRAMES have passed."""
@@ -104,6 +107,7 @@ def test_consecutive_counter_resets_on_no_motion():
 
 # --- reset_motion_state tests ---
 
+
 def test_reset_motion_state_clears_consecutive_counter():
     """reset_motion_state() must reset the counter so the gate closes again."""
     import config
@@ -121,10 +125,11 @@ def test_reset_motion_state_clears_consecutive_counter():
 
 # --- Cooldown tests ---
 
+
 def test_new_event_allowed_blocks_rapid_retriggering(monkeypatch):
     """new_event_allowed() must return False when called within the cooldown window."""
     monkeypatch.setattr(motion_detector, "_last_motion", 0)
-    assert motion_detector.new_event_allowed() is True   # first call fires
+    assert motion_detector.new_event_allowed() is True  # first call fires
     assert motion_detector.new_event_allowed() is False  # immediate second call blocked
 
 

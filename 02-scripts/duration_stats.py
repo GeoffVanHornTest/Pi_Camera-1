@@ -66,18 +66,16 @@ def parse_timestamp(clip):
 
 def main():
     clips_dir = config.CLIPS_DIR
-    clips = sorted([
-        f for f in os.listdir(clips_dir)
-        if f.startswith("motion_") and f.endswith(".mp4")
-    ])
+    clips = sorted(
+        [f for f in os.listdir(clips_dir) if f.startswith("motion_") and f.endswith(".mp4")]
+    )
 
     if not clips:
         print("No clips found.")
         return
 
     print(
-        f"\n{'Clip':<42} {'Dur':>6}  {'Class':<8}  {'MB':>5}  {'MB/s':>5}"
-        f"  {'Hour':>4}  time_of_day"
+        f"\n{'Clip':<42} {'Dur':>6}  {'Class':<8}  {'MB':>5}  {'MB/s':>5}  {'Hour':>4}  time_of_day"
     )
     print("-" * 90)
 
@@ -94,9 +92,17 @@ def main():
 
         if duration is None:
             print(f"{clip:<42}  (unreadable)")
-            rows.append({"clip": clip, "duration_sec": "N/A", "duration_class": "UNREADABLE",
-                         "file_size_mb": size_mb, "mb_per_sec": "N/A",
-                         "hour": "N/A", "time_of_day": "N/A"})
+            rows.append(
+                {
+                    "clip": clip,
+                    "duration_sec": "N/A",
+                    "duration_class": "UNREADABLE",
+                    "file_size_mb": size_mb,
+                    "mb_per_sec": "N/A",
+                    "hour": "N/A",
+                    "time_of_day": "N/A",
+                }
+            )
             continue
 
         dur_class = classify_duration(duration)
@@ -107,18 +113,22 @@ def main():
         duration_classes[dur_class] = duration_classes.get(dur_class, 0) + 1
         time_classes[time_class] = time_classes.get(time_class, 0) + 1
 
-        print(f"{clip:<42} {duration:>5.1f}s  {dur_class:<8}  {size_mb:>5.1f}  {mb_per_sec:>5.2f}  "
-              f"{hour:>4}h  {time_class}")
+        print(
+            f"{clip:<42} {duration:>5.1f}s  {dur_class:<8}  {size_mb:>5.1f}  {mb_per_sec:>5.2f}  "
+            f"{hour:>4}h  {time_class}"
+        )
 
-        rows.append({
-            "clip": clip,
-            "duration_sec": duration,
-            "duration_class": dur_class,
-            "file_size_mb": size_mb,
-            "mb_per_sec": mb_per_sec,
-            "hour": hour,
-            "time_of_day": time_class,
-        })
+        rows.append(
+            {
+                "clip": clip,
+                "duration_sec": duration,
+                "duration_class": dur_class,
+                "file_size_mb": size_mb,
+                "mb_per_sec": mb_per_sec,
+                "hour": hour,
+                "time_of_day": time_class,
+            }
+        )
 
     print(f"\nDuration distribution: {duration_classes}")
     print(f"Time of day distribution: {time_classes}")
@@ -126,8 +136,18 @@ def main():
     ts_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = os.path.join(clips_dir, f"duration_stats_{ts_str}.csv")
     with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["clip","duration_sec","duration_class",
-                                                "file_size_mb","mb_per_sec","hour","time_of_day"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "clip",
+                "duration_sec",
+                "duration_class",
+                "file_size_mb",
+                "mb_per_sec",
+                "hour",
+                "time_of_day",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nCSV saved: {out}")

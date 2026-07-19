@@ -186,7 +186,8 @@ def main():
     passed_preroll = [r for r in preroll_results if r["preroll_pass"]]
     avg_preroll = (
         sum(r["preroll_detected_sec"] for r in preroll_results) / len(preroll_results)
-        if preroll_results else None
+        if preroll_results
+        else None
     )
 
     print("=" * 65)
