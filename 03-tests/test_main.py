@@ -39,13 +39,13 @@ def test_cancel_watchdog_clears_watchdog_reference():
 
 
 def test_finish_clip_calls_stop_recording():
-    """_finish_clip() must call camera.stop_recording with an on_complete callback."""
+    """_finish_clip() must call camera.stop_recording with on_complete=_upload_and_notify."""
     _mock_camera.reset_mock()
     with patch.object(main.motion_detector, "reset_motion_state"):
         main._finish_clip()
     _mock_camera.stop_recording.assert_called_once()
     _, kwargs = _mock_camera.stop_recording.call_args
-    assert callable(kwargs.get("on_complete"))
+    assert kwargs.get("on_complete") is main._upload_and_notify
 
 
 def test_finish_clip_resets_motion_state():
