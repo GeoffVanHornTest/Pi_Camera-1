@@ -32,9 +32,11 @@ FPS = 30
 # artifacts, etc.). Raise this value if you get too many false triggers;
 # lower it if real motion is being missed. 500 is a good starting point.
 #
-# MOTION_COOLDOWN_SEC is how many seconds must pass after motion is first
-# detected before the detector can fire again. Prevents one continuous
-# movement from triggering hundreds of events.
+# MOTION_COOLDOWN_SEC is the minimum gap between the *start* of one clip and
+# the start of the next. new_event_allowed() in motion_detector.py enforces
+# this — a second trigger arriving within the window is ignored so one long
+# motion event doesn't spawn back-to-back clips. Distinct from
+# POST_MOTION_BUFFER_SEC, which controls when the *current* clip ends.
 # MOTION_THRESHOLD_DAY is used when average frame brightness is above BRIGHTNESS_THRESHOLD.
 # MOTION_THRESHOLD_NIGHT is used in IR/dark mode — noise floor is significantly higher
 # due to IR LED flicker and increased sensor gain at low light.
@@ -78,8 +80,9 @@ VIDEO_BITRATE_BPS = 2_500_000
 
 # --- Recording ---
 # POST_MOTION_BUFFER_SEC is how long motion must be continuously absent before
-# the clip is finalised. This is the effective minimum clip duration — recording
-# continues for this many seconds after the last detected motion frame.
+# the current clip is finalised. Recording continues for this many seconds
+# after the last detected motion frame — the clip tail/debounce timer.
+# Distinct from MOTION_COOLDOWN_SEC, which gates when the *next* clip can start.
 #
 # MAX_RECORD_SEC caps a single clip. If motion continues beyond this point
 # the clip is closed, uploaded, and a new one starts immediately.
