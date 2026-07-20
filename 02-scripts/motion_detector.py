@@ -1,5 +1,6 @@
 # motion_detector.py
 import time
+from collections import deque
 
 import config
 import cv2
@@ -9,7 +10,7 @@ _last_motion = 0
 
 # Filter state — reset between motion events via reset_motion_state().
 _consecutive_motion_frames = 0  # count of back-to-back frames that passed all blob checks
-_centroid_history = []  # ring buffer of (cx, cy) tuples for translation tracking
+_centroid_history = deque(maxlen=config.CENTROID_HISTORY_LEN)  # (cx, cy) ring buffer
 
 
 def reset_motion_state():
@@ -19,7 +20,7 @@ def reset_motion_state():
     its consecutive-frame count from scratch rather than inheriting leftover
     state from the previous clip.
     """
-    global _consecutive_motion_frames, _centroid_history
+    global _consecutive_motion_frames
     _consecutive_motion_frames = 0
     _centroid_history.clear()
 
@@ -48,7 +49,7 @@ def detect(frame):
         tuple: (motion_detected, frame) where motion_detected is a bool
         and frame is the original frame unchanged.
     """
-    global _consecutive_motion_frames, _centroid_history
+    global _consecutive_motion_frames
 
     fg_mask = _bg_subtractor.apply(frame)
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -92,8 +93,6 @@ def detect(frame):
         cx = int(M["m10"] / M["m00"])
         cy = int(M["m01"] / M["m00"])
         _centroid_history.append((cx, cy))
-        if len(_centroid_history) > config.CENTROID_HISTORY_LEN:
-            _centroid_history.pop(0)
 
     # --- Filter 3: consecutive-frame gate ---
     # Require MIN_CONSECUTIVE_FRAMES successive frames to all pass Filters 1
