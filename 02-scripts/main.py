@@ -24,6 +24,7 @@ import telegram_notifier
 # what get_frame() is doing. The main loop checks the event on every iteration.
 _watchdog = None
 _split_event = threading.Event()
+_currently_recording = False
 
 
 def _arm_watchdog():
@@ -88,6 +89,7 @@ def _finish_clip():
 def main():
     """Run the camera loop — detect motion, record clips, and send alerts."""
 
+    global _currently_recording
     _validate_config()
 
     currently_recording = False
@@ -119,6 +121,7 @@ def main():
                 camera.start_recording(filepath)
                 _arm_watchdog()
                 currently_recording = True
+                _currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
                 try:
@@ -149,6 +152,7 @@ def main():
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     filepath = None
                     currently_recording = False
+                    _currently_recording = False
                     _finish_clip()
 
         except (KeyboardInterrupt, SystemExit):
@@ -167,6 +171,9 @@ def main():
 def _shutdown():
     """Shared cleanup path for SIGTERM and KeyboardInterrupt."""
     print("\nStopping PI Camera...")
+    if _currently_recording:
+        print("Recording in progress — finalising clip before exit...")
+        _finish_clip()
     _cancel_watchdog()
     camera.close()
     print("Camera released. Goodbye.")

@@ -127,6 +127,31 @@ def test_upload_and_notify_sends_failure_on_no_url(monkeypatch):
     mock_send.assert_called_once_with("Clip recorded but Dropbox upload failed.")
 
 
+# --- #80: shutdown mid-clip must finalise the recording ---
+
+def test_shutdown_calls_finish_clip_when_recording(monkeypatch):
+    """_shutdown() must call camera.stop_recording if a clip is in progress."""
+    monkeypatch.setattr(main, "_currently_recording", True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    _mock_camera.reset_mock()
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    _mock_camera.stop_recording.assert_called_once()
+
+
+def test_shutdown_skips_finish_clip_when_not_recording(monkeypatch):
+    """_shutdown() must not call camera.stop_recording if no clip is in progress."""
+    monkeypatch.setattr(main, "_currently_recording", False)
+    _mock_camera.reset_mock()
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    _mock_camera.stop_recording.assert_not_called()
+
+
 # --- #78: snapshot failure must not break recording state ---
 
 def test_recording_continues_when_snapshot_raises(monkeypatch):
