@@ -4,6 +4,31 @@ All notable changes to PI Camera are documented here.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Bot token leaked in exception logs (#75)** — `telegram_notifier._safe_err()` redacts `TELEGRAM_BOT_TOKEN` from exception strings before printing; connection errors (which include the full URL) no longer expose the token in stdout or systemd journal
+- **Busy-loop CPU spike on camera error (#70)** — main loop `except` block now sleeps 1s per consecutive error and raises `RuntimeError` after 10, exiting cleanly so systemd can restart and re-initialise hardware
+- **Notification cooldown not enforced (#71)** — `send_photo()` checks `_last_photo_sent` against `NOTIFICATION_COOLDOWN_SEC`; rapid re-triggers no longer flood the Telegram chat
+- **`_finish_clip()` stale `filepath` parameter (#62)** — parameter removed; path is internal to `camera.stop_recording()` and was unused at the call site
+- **Duplicate `_upload_and_notify` closures (#63)** — promoted to a module-level function; the two identical inline closures in the split and finish paths are replaced with a single definition
+- **Stale config comments (#67, #72)** — `RESOLUTION`, `VIDEO_BITRATE_BPS`, and `NOTIFICATION_COOLDOWN_SEC` comments updated to reflect current values; `MOTION_COOLDOWN_SEC` and `POST_MOTION_BUFFER_SEC` cross-referenced to clarify their distinct roles
+- **Phantom `dropbox` dependency in requirements.txt (#68)** — stale entry removed; `pyproject.toml` is the authoritative dependency list
+- **Stale `clips/` entry in `.gitignore` (#73)** — replaced by `00-clips/` (correct directory name since v0.2.0)
+- **`strftime` microsecond magic-number slice in `storage.py` (#64)** — `%f` and `[:23]` removed; second-precision timestamps are sufficient given `MOTION_COOLDOWN_SEC = 10`
+- **`.env` path in README and docs (#61)** — corrected from `02-scripts/.env` to repo root `.env`; `.env.example` added at repo root with current Telegram + Dropbox keys only
+- **`pyproject.toml` version and description stale (#58)** — version bumped to 0.4.2; description updated to reference Telegram + Dropbox
+- **`clip-timing.md` stale content** — `MIN_RECORD_SEC` section removed (constant deleted in #43), `PRE_ROLL_SEC` updated 5→8, watchdog narrative corrected (~140s bug note replaced with accurate ~128s), ASCII timing diagram updated
+
+### Added
+
+- **Watchdog split test (#65)** — `test_watchdog_split_calls_split_recording` verifies `camera.split_recording` is called with `on_complete=main._upload_and_notify` when `_split_event` fires
+- **`_upload_and_notify` tests (#74)** — two new tests verify the Dropbox link is sent on success and the fallback message is sent on upload failure
+- **Token-redaction tests (#75)** — three new tests: `_safe_err` replaces the token, `_safe_err` survives an empty token, and `send_photo` exception does not print the token to stdout
+
+---
+
 ## [0.4.2] - 2026-07-19
 
 ### Fixed
