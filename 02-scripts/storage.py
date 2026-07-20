@@ -25,10 +25,10 @@ def get_video_path():
     """Generate a timestamped file path for a new video clip.
 
     Returns:
-        str: Path in the form clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.
+        str: Path in the form 00-clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.
     """
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:23]
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"motion_{timestamp}.mp4"
     return os.path.join(config.CLIPS_DIR, filename)
 
@@ -37,13 +37,13 @@ def get_snapshot_path():
     """Generate a timestamped file path for a new snapshot image.
 
     Returns:
-        str: Path in the form clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.
+        str: Path in the form 00-clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.
     """
     # Almost identical to get_video_path() — the only differences are the
     # prefix (snapshot_ instead of motion_) and the extension
     # (.jpg instead of .mp4).
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:23]
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"snapshot_{timestamp}.jpg"
     return os.path.join(config.CLIPS_DIR, filename)
 
