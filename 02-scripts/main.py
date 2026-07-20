@@ -67,7 +67,7 @@ def _validate_config():
         )
 
 
-def _finish_clip(filepath):
+def _finish_clip():
     """Stop recording, reset filter state, and upload the clip once conversion completes."""
     motion_detector.reset_motion_state()
     _cancel_watchdog()
@@ -149,10 +149,9 @@ def main():
                     _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
-                    clip_to_upload = filepath
                     filepath = None
                     currently_recording = False
-                    _finish_clip(clip_to_upload)
+                    _finish_clip()
 
         except (KeyboardInterrupt, SystemExit):
             raise
