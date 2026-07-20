@@ -4,17 +4,23 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
+import config
 import motion_detector
 import numpy as np
 
+# Frame shape must match production resolution so MOTION_THRESHOLD contour-area
+# values are evaluated against the same pixel counts as the real camera.
+_W, _H = config.RESOLUTION  # RESOLUTION is (width, height)
+_SHAPE = (_H, _W, 3)        # numpy uses (height, width, channels)
+
 
 def static_frame():
-    return np.zeros((1080, 1920, 3), dtype=np.uint8)
+    return np.zeros(_SHAPE, dtype=np.uint8)
 
 
 def white_frame():
     """Solid white frame — maximally different from a black background model."""
-    return np.full((1080, 1920, 3), 255, dtype=np.uint8)
+    return np.full(_SHAPE, 255, dtype=np.uint8)
 
 
 def _warm_up():
@@ -62,8 +68,6 @@ def test_static_frame_does_not_trigger_motion():
 
 def test_motion_requires_min_consecutive_frames():
     """detect() must return False until MIN_CONSECUTIVE_FRAMES have passed."""
-    import config
-
     _warm_up()
     results = []
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -77,8 +81,6 @@ def test_motion_requires_min_consecutive_frames():
 
 def test_motion_returns_true_on_sustained_motion():
     """Once the gate is open, subsequent motion frames keep returning True."""
-    import config
-
     _warm_up()
     # Open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -92,8 +94,6 @@ def test_motion_returns_true_on_sustained_motion():
 
 def test_consecutive_counter_resets_on_no_motion():
     """A static frame between motion frames must reset the consecutive counter."""
-    import config
-
     _warm_up()
     # Partial run — not enough to open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES - 1):
@@ -110,8 +110,6 @@ def test_consecutive_counter_resets_on_no_motion():
 
 def test_reset_motion_state_clears_consecutive_counter():
     """reset_motion_state() must reset the counter so the gate closes again."""
-    import config
-
     _warm_up()
     # Open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -135,8 +133,6 @@ def test_new_event_allowed_blocks_rapid_retriggering(monkeypatch):
 
 def test_new_event_allowed_fires_after_cooldown(monkeypatch):
     """new_event_allowed() must return True once MOTION_COOLDOWN_SEC has elapsed."""
-    import config
-
     monkeypatch.setattr(
         motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1
     )
