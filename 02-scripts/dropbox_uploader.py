@@ -43,7 +43,7 @@ def _get_access_token():
     return _cached_token
 
 
-def upload(filepath):
+def upload(filepath: str) -> str | None:
     """Upload a file to Dropbox and return a shareable link.
 
     Args:

@@ -4,6 +4,7 @@ from collections import deque
 
 import config
 import cv2
+import numpy as np
 
 _bg_subtractor = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
 _last_motion = 0
@@ -25,7 +26,7 @@ def reset_motion_state():
     _centroid_history.clear()
 
 
-def detect(frame):
+def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     """Analyse a frame for motion — layered filter pipeline.
 
     The pipeline runs four stages in order. Each stage must pass before the
@@ -105,7 +106,7 @@ def detect(frame):
     return True, frame
 
 
-def new_event_allowed():
+def new_event_allowed() -> bool:
     """Return True if enough time has passed to treat this as a new motion event.
 
     Separate from detect() so the recording loop can key off the raw motion

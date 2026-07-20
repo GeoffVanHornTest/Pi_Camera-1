@@ -20,7 +20,7 @@ def _safe_err(exc):
     return msg.replace(token, "***") if token else msg
 
 
-def send_photo(image_path, caption="Motion detected!"):
+def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
     """Send a JPEG image to the configured Telegram chat.
 
     Skipped silently if called within NOTIFICATION_COOLDOWN_SEC of the last
@@ -52,7 +52,7 @@ def send_photo(image_path, caption="Motion detected!"):
         print(f"[telegram] send_photo failed: {_safe_err(e)}")
 
 
-def send_message(text):
+def send_message(text: str) -> None:
     """Send a plain text message to the configured Telegram chat.
 
     Args:
