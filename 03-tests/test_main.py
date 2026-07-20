@@ -40,7 +40,7 @@ def test_finish_clip_calls_stop_recording():
     """_finish_clip() must call camera.stop_recording with an on_complete callback."""
     _mock_camera.reset_mock()
     with patch.object(main.motion_detector, "reset_motion_state"):
-        main._finish_clip("/clips/test.mp4")
+        main._finish_clip()
     _mock_camera.stop_recording.assert_called_once()
     _, kwargs = _mock_camera.stop_recording.call_args
     assert callable(kwargs.get("on_complete"))
@@ -50,7 +50,7 @@ def test_finish_clip_resets_motion_state():
     """_finish_clip() must reset the motion detector state."""
     _mock_camera.reset_mock()
     with patch.object(main.motion_detector, "reset_motion_state") as mock_reset:
-        main._finish_clip("/clips/test.mp4")
+        main._finish_clip()
     mock_reset.assert_called_once()
 
 
@@ -60,6 +60,6 @@ def test_finish_clip_cancels_watchdog(monkeypatch):
     main._arm_watchdog()
     _mock_camera.reset_mock()
     with patch.object(main.motion_detector, "reset_motion_state"):
-        main._finish_clip("/clips/test.mp4")
+        main._finish_clip()
     assert not main._split_event.is_set()
     assert main._watchdog is None

@@ -1,20 +1,32 @@
 """Telegram notification sender for the PI Camera system.
 
 Sends snapshot photos and text messages to a Telegram chat via the Bot API.
-No cooldown is applied here — gate alerts upstream with motion_detector.new_event_allowed().
+send_photo() enforces NOTIFICATION_COOLDOWN_SEC between alerts so that rapid
+re-triggers don't flood the chat. send_message() (clip-ready links) always sends.
 """
+
+import time
 
 import config
 import requests
+
+_last_photo_sent = 0.0
 
 
 def send_photo(image_path, caption="Motion detected!"):
     """Send a JPEG image to the configured Telegram chat.
 
+    Skipped silently if called within NOTIFICATION_COOLDOWN_SEC of the last
+    successful send, so rapid re-triggers don't flood the chat.
+
     Args:
         image_path: Path to the .jpg file to send.
         caption: Text shown below the photo. Defaults to "Motion detected!".
     """
+    global _last_photo_sent
+    if time.time() - _last_photo_sent < config.NOTIFICATION_COOLDOWN_SEC:
+        print("[telegram] send_photo suppressed — within cooldown window")
+        return
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
     try:
         with open(image_path, "rb") as f:
@@ -25,7 +37,9 @@ def send_photo(image_path, caption="Motion detected!"):
                 timeout=15,
             )
         body = resp.json()
-        if not body.get("ok"):
+        if body.get("ok"):
+            _last_photo_sent = time.time()
+        else:
             print(f"[telegram] send_photo API error: {body.get('description', body)}")
     except Exception as e:
         print(f"[telegram] send_photo failed: {e}")
