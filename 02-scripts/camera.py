@@ -80,7 +80,7 @@ def _log_clip_quality(mp4_path, expected_sec):
         # buffer, so add it to the wall-clock baseline before comparing.
         expected_total = expected_sec + config.PRE_ROLL_SEC
         drop_pct = 100.0 * (1.0 - actual_sec / expected_total)
-        label = "drop" if drop_pct > 0 else "gain"
+        label = "drop" if drop_pct > 0 else ("gain" if drop_pct < 0 else "ok")
         print(
             f"[camera] clip duration: {actual_sec:.1f}s / {expected_total:.1f}s expected"
             f" ({drop_pct:+.1f}% {label})"
