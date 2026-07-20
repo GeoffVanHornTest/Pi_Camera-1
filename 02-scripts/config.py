@@ -98,7 +98,8 @@ CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 # NOTIFICATION_COOLDOWN_SEC is the minimum gap between Telegram alerts.
 # This is separate from MOTION_COOLDOWN_SEC — motion can be detected
 # every 10 seconds, but you only want one alert per minute at most,
-# even if motion is continuous. Currently defined but not enforced (#71).
+# even if motion is continuous. Enforced for send_photo() in telegram_notifier.py;
+# send_message() (clip-ready links) is intentionally not rate-limited.
 NOTIFICATION_COOLDOWN_SEC = 60
 
 # --- Telegram ---
