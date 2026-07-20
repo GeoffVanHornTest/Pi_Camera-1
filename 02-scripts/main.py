@@ -94,6 +94,8 @@ def main():
     filepath = None
     last_cleanup = 0
     motion_last_seen = 0.0
+    consecutive_errors = 0
+    _MAX_CONSECUTIVE_ERRORS = 10
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
@@ -106,6 +108,8 @@ def main():
             frame = camera.get_frame()
             motion, _ = motion_detector.detect(frame)
             now = time.time()
+
+            consecutive_errors = 0
 
             if motion:
                 motion_last_seen = now
@@ -147,7 +151,14 @@ def main():
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:
-            print(f"[main] frame error (skipping): {e}")
+            consecutive_errors += 1
+            print(f"[main] frame error ({consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}): {e}")
+            if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                raise RuntimeError(
+                    f"[main] {_MAX_CONSECUTIVE_ERRORS} consecutive errors — "
+                    "exiting so systemd can restart and re-initialise hardware"
+                ) from e
+            time.sleep(1)
 
 
 def _shutdown():
