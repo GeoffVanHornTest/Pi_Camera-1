@@ -4,6 +4,7 @@ Uploads video clips to Dropbox and returns a shareable link.
 Uses the refresh token flow so credentials never expire.
 """
 
+import json
 import os
 
 import config
@@ -49,7 +50,7 @@ def upload(filepath):
                 _UPLOAD_URL,
                 headers={
                     "Authorization": f"Bearer {token}",
-                    "Dropbox-API-Arg": f'{{"path": "{dropbox_path}", "mode": "add"}}',
+                    "Dropbox-API-Arg": json.dumps({"path": dropbox_path, "mode": "add"}),
                     "Content-Type": "application/octet-stream",
                 },
                 data=f,

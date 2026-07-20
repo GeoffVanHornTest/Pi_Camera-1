@@ -84,6 +84,33 @@ def test_upload_uses_correct_dropbox_path(tmp_path, monkeypatch):
     assert "/PI_Camera/motion_2026-07-11_10-00-00.mp4" in api_arg
 
 
+def test_upload_api_arg_header_is_valid_json(tmp_path, monkeypatch):
+    """Dropbox-API-Arg header must be valid JSON regardless of filename content."""
+    import json
+
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+
+    # Filename with characters that would break an f-string JSON construction
+    clip = tmp_path / 'motion_"tricky"_\\path.mp4'
+    clip.write_bytes(b"fake video")
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.side_effect = [
+            _mock_token_response(),
+            _mock_upload_response(),
+            _mock_share_response(),
+        ]
+        dropbox_uploader.upload(str(clip))
+
+    upload_call = mock_post.call_args_list[1]
+    api_arg = upload_call[1]["headers"]["Dropbox-API-Arg"]
+    parsed = json.loads(api_arg)  # raises if not valid JSON
+    assert parsed["mode"] == "add"
+    assert parsed["path"].startswith("/PI_Camera/")
+
+
 def test_get_access_token_uses_refresh_token(monkeypatch):
     """_get_access_token() must POST the refresh token to get a new access token."""
     monkeypatch.setattr("config.DROPBOX_APP_KEY", "mykey")
