@@ -6,6 +6,7 @@ Uses the refresh token flow so credentials never expire.
 
 import json
 import os
+import time
 
 import config
 import requests
@@ -14,9 +15,17 @@ _TOKEN_URL = "https://api.dropbox.com/oauth2/token"
 _UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload"
 _SHARE_URL = "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings"
 
+_TOKEN_TTL = 4 * 3600       # Dropbox access tokens are valid for 4 hours
+_TOKEN_MARGIN = 60           # refresh this many seconds before expiry
+_cached_token = None
+_token_fetched_at = 0.0
+
 
 def _get_access_token():
-    """Exchange the stored refresh token for a short-lived access token."""
+    """Return a valid access token, fetching a new one only when the cached token has expired."""
+    global _cached_token, _token_fetched_at
+    if _cached_token and time.time() - _token_fetched_at < _TOKEN_TTL - _TOKEN_MARGIN:
+        return _cached_token
     response = requests.post(
         _TOKEN_URL,
         data={
@@ -28,7 +37,9 @@ def _get_access_token():
         timeout=15,
     )
     response.raise_for_status()
-    return response.json()["access_token"]
+    _cached_token = response.json()["access_token"]
+    _token_fetched_at = time.time()
+    return _cached_token
 
 
 def upload(filepath):

@@ -5,6 +5,14 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
 import dropbox_uploader
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def reset_token_cache(monkeypatch):
+    """Reset the module-level token cache before each test."""
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", None)
+    monkeypatch.setattr(dropbox_uploader, "_token_fetched_at", 0.0)
 
 
 def _mock_token_response(token="test-access-token"):
@@ -109,6 +117,44 @@ def test_upload_api_arg_header_is_valid_json(tmp_path, monkeypatch):
     parsed = json.loads(api_arg)  # raises if not valid JSON
     assert parsed["mode"] == "add"
     assert parsed["path"].startswith("/PI_Camera/")
+
+
+def test_get_access_token_caches_token(monkeypatch):
+    """_get_access_token() must not POST again while the cached token is still valid."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.return_value = _mock_token_response("cached-token")
+        first = dropbox_uploader._get_access_token()
+        second = dropbox_uploader._get_access_token()
+
+    assert first == "cached-token"
+    assert second == "cached-token"
+    assert mock_post.call_count == 1  # only one network call
+
+
+def test_get_access_token_refreshes_when_expired(monkeypatch):
+    """_get_access_token() must fetch a new token when the cached one has expired."""
+    import time
+
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", "old-token")
+    # Simulate a token fetched well beyond the TTL
+    monkeypatch.setattr(
+        dropbox_uploader, "_token_fetched_at",
+        time.time() - dropbox_uploader._TOKEN_TTL - 1,
+    )
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.return_value = _mock_token_response("new-token")
+        token = dropbox_uploader._get_access_token()
+
+    assert token == "new-token"
+    mock_post.assert_called_once()
 
 
 def test_get_access_token_uses_refresh_token(monkeypatch):
