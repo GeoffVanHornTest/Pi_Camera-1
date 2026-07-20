@@ -67,20 +67,21 @@ def _validate_config():
         )
 
 
+def _upload_and_notify(path):
+    """Upload a converted MP4 to Dropbox and send a Telegram link."""
+    url = dropbox_uploader.upload(path)
+    if url:
+        telegram_notifier.send_message(f"Clip ready: {url}")
+        print(f"Clip uploaded: {url}")
+    else:
+        telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+
+
 def _finish_clip():
     """Stop recording, reset filter state, and upload the clip once conversion completes."""
     motion_detector.reset_motion_state()
     _cancel_watchdog()
     print("Recording stopped — uploading clip in background...")
-
-    def _upload_and_notify(path):
-        url = dropbox_uploader.upload(path)
-        if url:
-            telegram_notifier.send_message(f"Clip ready: {url}")
-            print(f"Clip uploaded: {url}")
-        else:
-            telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
-
     camera.stop_recording(on_complete=_upload_and_notify)
 
 
@@ -133,17 +134,7 @@ def main():
                     print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
                     filepath = storage.get_video_path()
 
-                    def _upload_and_notify_split(path):
-                        url = dropbox_uploader.upload(path)
-                        if url:
-                            telegram_notifier.send_message(f"Clip ready: {url}")
-                            print(f"Clip uploaded: {url}")
-                        else:
-                            telegram_notifier.send_message(
-                                "Clip recorded but Dropbox upload failed."
-                            )
-
-                    camera.split_recording(filepath, on_complete=_upload_and_notify_split)
+                    camera.split_recording(filepath, on_complete=_upload_and_notify)
                     motion_detector.reset_motion_state()
                     motion_last_seen = now
                     _arm_watchdog()
