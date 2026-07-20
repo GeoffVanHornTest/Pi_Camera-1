@@ -119,6 +119,23 @@ def test_upload_api_arg_header_is_valid_json(tmp_path, monkeypatch):
     assert parsed["path"].startswith("/PI_Camera/")
 
 
+def test_upload_returns_none_for_oversized_file(tmp_path, monkeypatch):
+    """upload() must return None without calling the API when file exceeds 150MB limit."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+    monkeypatch.setattr(dropbox_uploader, "_UPLOAD_MAX_BYTES", 10)  # 10-byte limit for test
+
+    clip = tmp_path / "big.mp4"
+    clip.write_bytes(b"x" * 11)  # 11 bytes > 10-byte limit
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        result = dropbox_uploader.upload(str(clip))
+
+    assert result is None
+    mock_post.assert_not_called()
+
+
 def test_get_access_token_caches_token(monkeypatch):
     """_get_access_token() must not POST again while the cached token is still valid."""
     monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")

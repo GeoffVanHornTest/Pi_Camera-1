@@ -17,6 +17,7 @@ _SHARE_URL = "https://api.dropboxapi.com/2/sharing/create_shared_link_with_setti
 
 _TOKEN_TTL = 4 * 3600       # Dropbox access tokens are valid for 4 hours
 _TOKEN_MARGIN = 60           # refresh this many seconds before expiry
+_UPLOAD_MAX_BYTES = 150 * 1024 * 1024  # /files/upload hard limit; use upload sessions above this
 _cached_token = None
 _token_fetched_at = 0.0
 
@@ -52,6 +53,15 @@ def upload(filepath):
         str: A shareable URL, or None if the upload failed.
     """
     try:
+        file_size = os.path.getsize(filepath)
+        if file_size > _UPLOAD_MAX_BYTES:
+            print(
+                f"[dropbox] {os.path.basename(filepath)} is {file_size / 1024 / 1024:.1f} MB "
+                f"— exceeds the {_UPLOAD_MAX_BYTES // 1024 // 1024} MB /files/upload limit. "
+                "Upload skipped. Use upload sessions for large files."
+            )
+            return None
+
         token = _get_access_token()
         filename = os.path.basename(filepath)
         dropbox_path = f"/PI_Camera/{filename}"
