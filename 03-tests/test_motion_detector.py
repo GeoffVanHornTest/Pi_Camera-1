@@ -5,13 +5,29 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
 import config
+import cv2
 import motion_detector
 import numpy as np
+import pytest
 
 # Frame shape must match production resolution so MOTION_THRESHOLD contour-area
 # values are evaluated against the same pixel counts as the real camera.
 _W, _H = config.RESOLUTION  # RESOLUTION is (width, height)
 _SHAPE = (_H, _W, 3)        # numpy uses (height, width, channels)
+
+
+@pytest.fixture(autouse=True)
+def fresh_motion_detector():
+    """Replace the shared MOG2 model with a new instance before each test.
+
+    The background subtractor is a module-level singleton — state accumulated
+    in one test (warm-up frames, white frames) would otherwise bleed into the
+    next and make test results depend on execution order.
+    """
+    motion_detector._bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+        detectShadows=False
+    )
+    motion_detector.reset_motion_state()
 
 
 def static_frame():
