@@ -11,4 +11,3 @@
 opencv-python-headless
 python-dotenv
 requests
-dropbox
