@@ -13,6 +13,13 @@ import requests
 _last_photo_sent = 0.0
 
 
+def _safe_err(exc):
+    """Return exc's string representation with the bot token redacted."""
+    token = config.TELEGRAM_BOT_TOKEN or ""
+    msg = str(exc)
+    return msg.replace(token, "***") if token else msg
+
+
 def send_photo(image_path, caption="Motion detected!"):
     """Send a JPEG image to the configured Telegram chat.
 
@@ -42,7 +49,7 @@ def send_photo(image_path, caption="Motion detected!"):
         else:
             print(f"[telegram] send_photo API error: {body.get('description', body)}")
     except Exception as e:
-        print(f"[telegram] send_photo failed: {e}")
+        print(f"[telegram] send_photo failed: {_safe_err(e)}")
 
 
 def send_message(text):
@@ -62,4 +69,4 @@ def send_message(text):
         if not body.get("ok"):
             print(f"[telegram] send_message API error: {body.get('description', body)}")
     except Exception as e:
-        print(f"[telegram] send_message failed: {e}")
+        print(f"[telegram] send_message failed: {_safe_err(e)}")
