@@ -20,8 +20,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Camera ---
-# RESOLUTION is a (width, height) tuple in pixels. 1920x1080 is full HD
-# and well within the OV5647's capability.
+# RESOLUTION is a (width, height) tuple in pixels. 1280x720 (720p) balances
+# detail and encoder load on the Pi 4 — confirmed <1% frame drop in field tests.
 # FPS is frames per second captured — 30 is standard for smooth video.
 RESOLUTION = (1280, 720)
 FPS = 30
@@ -70,7 +70,7 @@ CENTROID_HISTORY_LEN = 10
 #
 # VIDEO_BITRATE_BPS is the H264 encoder target bitrate in bits-per-second.
 # Setting this explicitly avoids picamera2's low default (~1 Mbps).
-# 4 Mbps gives good detail at 1080p while keeping file sizes reasonable.
+# 2.5 Mbps gives good detail at 720p while keeping file sizes reasonable.
 # Note: CircularOutput buffersize is in frames (not bytes), so buffer duration
 # is controlled by PRE_ROLL_SEC * FPS, not by this bitrate.
 PRE_ROLL_SEC = 8
@@ -92,10 +92,10 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
 # --- Notifications ---
-# NOTIFICATION_COOLDOWN_SEC is the minimum gap between alert emails (Gmail backend).
+# NOTIFICATION_COOLDOWN_SEC is the minimum gap between Telegram alerts.
 # This is separate from MOTION_COOLDOWN_SEC — motion can be detected
-# every 10 seconds, but you only want one email per minute at most,
-# even if motion is continuous.
+# every 10 seconds, but you only want one alert per minute at most,
+# even if motion is continuous. Currently defined but not enforced (#71).
 NOTIFICATION_COOLDOWN_SEC = 60
 
 # --- Telegram ---
