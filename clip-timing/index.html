@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Raspberry Pi night vision motion camera with Gmail alerts">
+        <meta name="description" content="Raspberry Pi night vision motion camera with Telegram alerts and Dropbox upload">
       
       
       
@@ -377,17 +377,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#clip-start-min_record_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Clip start — MIN_RECORD_SEC
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#clip-tail-post_motion_buffer_sec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -593,17 +582,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#clip-start-min_record_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Clip start — MIN_RECORD_SEC
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#clip-tail-post_motion_buffer_sec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -721,12 +699,12 @@ _camera.start_recording(_encoder, _circular)
 <tbody>
 <tr>
 <td><code>PRE_ROLL_SEC</code></td>
-<td>5</td>
+<td>8</td>
 <td>Target pre-roll duration in seconds</td>
 </tr>
 <tr>
 <td><code>VIDEO_BITRATE_BPS</code></td>
-<td>4 000 000</td>
+<td>2 500 000</td>
 <td>H264 encoder target bitrate — set explicitly to avoid picamera2's low default</td>
 </tr>
 <tr>
@@ -739,37 +717,15 @@ _camera.start_recording(_encoder, _circular)
 <h3 id="effective-pre-roll-is-slightly-less-than-pre_roll_sec">Effective pre-roll is slightly less than <code>PRE_ROLL_SEC</code></h3>
 <p><code>CircularOutput</code> discards frames at the start of a flush until it reaches the first keyframe (IDR frame). An H264 stream cannot be decoded starting from a non-keyframe, so this is intentional. The hardware encoder's default keyframe interval is 60 frames (2 seconds at 30 fps). In the worst case — trigger fires immediately after a keyframe — the buffer discards up to one full keyframe interval:</p>
 <pre><code>effective pre-roll = PRE_ROLL_SEC - keyframe_interval
-                   = 5s - 2s = 3s  (worst case)
+                   = 8s - 2s = 6s  (worst case)
 </code></pre>
-<p>Observed pre-roll in field testing: <strong>~3–5 seconds</strong>, typically ~3s. This is accepted as sufficient. If tighter pre-roll is required, set <code>iperiod=15</code> on <code>H264Encoder</code> (0.5s keyframe interval → max loss 0.5s) or increase <code>PRE_ROLL_SEC</code> to compensate.</p>
+<p>Observed pre-roll in field testing: <strong>~6–8 seconds</strong>, typically ~6s. If tighter pre-roll is required, set <code>iperiod=15</code> on <code>H264Encoder</code> (0.5s keyframe interval → max loss 0.5s) or increase <code>PRE_ROLL_SEC</code> to compensate.</p>
 <h3 id="why-the-buffer-is-written-to-a-file-not-piped-directly-to-ffmpeg">Why the buffer is written to a file, not piped directly to ffmpeg</h3>
 <p>The ring buffer may flush without an SPS/PPS header (H264 stream metadata) at the very start — those headers only appear at keyframe boundaries. ffmpeg reads a pipe sequentially and cannot seek backwards to find them; if they are not first, ffmpeg exits and the resulting MP4 is corrupt.</p>
 <p>The solution: flush to a <code>.h264</code> file, then convert. ffmpeg probes a file and finds SPS/PPS regardless of offset. After conversion the <code>.h264</code> source is deleted.</p>
 <hr />
-<h2 id="clip-start-min_record_sec">Clip start — <code>MIN_RECORD_SEC</code></h2>
-<p>Once a motion event is allowed (<code>new_event_allowed()</code> passes the cooldown gate), <code>start_recording()</code> is called and a watchdog timer is armed. The clip will not stop until <em>both</em> of the following are true:</p>
-<ol>
-<li><code>MIN_RECORD_SEC</code> has elapsed since recording started</li>
-<li><code>POST_MOTION_BUFFER_SEC</code> has elapsed since motion was last detected</li>
-</ol>
-<p><code>MIN_RECORD_SEC</code> prevents very short clips when motion stops immediately after triggering (e.g., someone passes quickly through the frame and the detector loses them). The recording keeps running even through brief gaps in detection.</p>
-<table>
-<thead>
-<tr>
-<th>Config key</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>MIN_RECORD_SEC</code></td>
-<td>15s</td>
-</tr>
-</tbody>
-</table>
-<hr />
 <h2 id="clip-tail-post_motion_buffer_sec">Clip tail — <code>POST_MOTION_BUFFER_SEC</code></h2>
-<p>After <code>MIN_RECORD_SEC</code> has elapsed, the clip ends when motion has been continuously absent for <code>POST_MOTION_BUFFER_SEC</code>. Each new detected motion frame resets this countdown.</p>
+<p>Once a motion event is allowed (<code>new_event_allowed()</code> passes the cooldown gate), <code>start_recording()</code> is called. The clip ends when motion has been continuously absent for <code>POST_MOTION_BUFFER_SEC</code>. Each new detected motion frame resets this countdown.</p>
 <p>This acts as a trailing buffer — the clip continues a short time after the last movement so the subject is fully out of frame before recording stops.</p>
 <table>
 <thead>
@@ -785,7 +741,7 @@ _camera.start_recording(_encoder, _circular)
 </tr>
 </tbody>
 </table>
-<p>The theoretical minimum clip duration (no motion after the first detection) is <code>POST_MOTION_BUFFER_SEC</code> = 20s, since <code>MIN_RECORD_SEC</code> (15s) &lt; <code>POST_MOTION_BUFFER_SEC</code> (20s).</p>
+<p>The minimum clip duration (no motion after the first detection) is <code>POST_MOTION_BUFFER_SEC</code> = 20s.</p>
 <hr />
 <h2 id="clip-cap-max_record_sec-and-the-watchdog">Clip cap — <code>MAX_RECORD_SEC</code> and the watchdog</h2>
 <p>If motion is continuous, <code>POST_MOTION_BUFFER_SEC</code> never elapses and the clip grows without bound. <code>MAX_RECORD_SEC</code> is a hard cap enforced by a background watchdog thread — independent of the main frame loop:</p>
@@ -809,8 +765,7 @@ _watchdog.start()
 </tbody>
 </table>
 <h3 id="observed-clip-duration-at-watchdog-split">Observed clip duration at watchdog split</h3>
-<p>With <code>PRE_ROLL_SEC = 5</code> and <code>MAX_RECORD_SEC = 120</code>, clips that ran to the watchdog were measured at <strong>~140s</strong> total. The extra ~20s comes from the watchdog timer starting <em>after</em> the Telegram photo notification (<code>send_photo()</code>) returns — that network call is blocking and takes ~15–20s. Clip content begins accumulating from <code>start_recording()</code> but the 120s timer only starts after <code>_arm_watchdog()</code> is called.</p>
-<p>If clip-length precision matters, move <code>_arm_watchdog()</code> to immediately after <code>camera.start_recording()</code>, before any notification calls.</p>
+<p>With <code>PRE_ROLL_SEC = 8</code> and <code>MAX_RECORD_SEC = 120</code>, clips that run to the watchdog are <strong>~128s</strong> total: 8s pre-roll flushed at the start plus 120s of live recording. <code>_arm_watchdog()</code> is called immediately after <code>camera.start_recording()</code> so the timer is not delayed by the Telegram notification (which runs on a daemon thread).</p>
 <hr />
 <h2 id="cooldown-between-events-motion_cooldown_sec">Cooldown between events — <code>MOTION_COOLDOWN_SEC</code></h2>
 <p>After a clip ends, <code>new_event_allowed()</code> gates the next recording start. Only one new event is allowed per <code>MOTION_COOLDOWN_SEC</code> window, preventing a continuous subject from triggering back-to-back clips with no gap.</p>
@@ -831,13 +786,10 @@ _watchdog.start()
 <p>This is separate from <code>POST_MOTION_BUFFER_SEC</code> — motion can be detected continuously within an active clip without resetting the cooldown. The cooldown only applies to starting a <em>new</em> clip.</p>
 <hr />
 <h2 id="timing-summary">Timing summary</h2>
-<pre><code>                    ┌─ PRE_ROLL_SEC (5s nominal, ~3s effective) ─┐
+<pre><code>                    ┌─ PRE_ROLL_SEC (8s nominal, ~6s effective) ─┐
                     │                                             │
 ─────────────── ring buffer ─────────────────┬───── active recording ──────────────────
                                         TRIGGER                  │
-                                                                  │
-                    ├──── MIN_RECORD_SEC (15s) ────────────────┤  │
-                              (must elapse before stop check)       │
                                                                   │
                                             ├── POST_MOTION_BUFFER_SEC (20s) ──┤
                                                  (no motion for this long → stop)

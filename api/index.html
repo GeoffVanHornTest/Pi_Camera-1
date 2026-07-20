@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Raspberry Pi night vision motion camera with Gmail alerts">
+        <meta name="description" content="Raspberry Pi night vision motion camera with Telegram alerts and Dropbox upload">
       
       
       
@@ -387,65 +387,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#camera_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        camera
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#camera" class="md-nav__link">
     <span class="md-ellipsis">
       
         camera
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.close" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        close
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.get_frame" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_frame
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.start_recording" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        start_recording
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.stop_recording" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        stop_recording
       
     </span>
   </a>
@@ -767,65 +712,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#camera_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        camera
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#camera" class="md-nav__link">
     <span class="md-ellipsis">
       
         camera
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.close" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        close
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.get_frame" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_frame
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.start_recording" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        start_recording
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#camera.stop_recording" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        stop_recording
       
     </span>
   </a>
@@ -1126,343 +1016,39 @@ tunable parameters. Change a value here and it takes effect everywhere.</p>
 
     </div>
 
-</div><h2 id="camera_1">camera</h2>
-
-
-<div class="doc doc-object doc-module">
-
-
-
-<a id="camera"></a>
-    <div class="doc doc-contents first">
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="camera.close" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">close</span><span class="p">()</span></code>
-
-</h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Shut down the camera and release the hardware.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>02-scripts/camera.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">112</span>
-<span class="normal">113</span>
-<span class="normal">114</span>
-<span class="normal">115</span>
-<span class="normal">116</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Shut down the camera and release the hardware.&quot;&quot;&quot;</span>
-    <span class="n">_camera</span><span class="o">.</span><span class="n">stop_recording</span><span class="p">()</span>
-    <span class="n">_camera</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
-    <span class="n">_camera</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="camera.get_frame" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">get_frame</span><span class="p">()</span></code>
-
-</h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Capture a single frame from the live camera feed.</p>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>numpy.ndarray: A (height, width, 3) array in BGR format,</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>ready for OpenCV processing.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>02-scripts/camera.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_frame</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Capture a single frame from the live camera feed.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        numpy.ndarray: A (height, width, 3) array in BGR format,</span>
-<span class="sd">        ready for OpenCV processing.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">_camera</span><span class="o">.</span><span class="n">capture_array</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="camera.start_recording" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span></code>
-
-</h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Tap the ring buffer into a file and start saving footage.</p>
-<p>Writes to a temporary .h264 file; stop_recording() converts it to MP4.
-The last config.PRE_ROLL_SEC seconds already in the buffer are flushed
-to the file first, so the clip starts before the trigger point.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>filepath</code>
-            </td>
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Full path to the output .mp4 file.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>02-scripts/camera.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">47</span>
-<span class="normal">48</span>
-<span class="normal">49</span>
-<span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span>
-<span class="normal">53</span>
-<span class="normal">54</span>
-<span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
-<span class="normal">61</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tap the ring buffer into a file and start saving footage.</span>
-
-<span class="sd">    Writes to a temporary .h264 file; stop_recording() converts it to MP4.</span>
-<span class="sd">    The last config.PRE_ROLL_SEC seconds already in the buffer are flushed</span>
-<span class="sd">    to the file first, so the clip starts before the trigger point.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        filepath: Full path to the output .mp4 file.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">global</span> <span class="n">_h264_file</span>
-    <span class="n">h264_path</span> <span class="o">=</span> <span class="n">filepath</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.mp4&quot;</span><span class="p">,</span> <span class="s2">&quot;.h264&quot;</span><span class="p">)</span>
-    <span class="n">_h264_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">h264_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
-    <span class="n">_circular</span><span class="o">.</span><span class="n">fileoutput</span> <span class="o">=</span> <span class="n">_h264_file</span>
-    <span class="n">_circular</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="camera.stop_recording" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">stop_recording</span><span class="p">()</span></code>
-
-</h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Stop writing to the current clip file and convert to MP4.</p>
-<p>Closes the .h264 file, remuxes it to .mp4 with ffmpeg (-c:v copy so no
-re-encode), then deletes the .h264 source. The circular buffer continues
-capturing — the next start_recording() call will again include
-PRE_ROLL_SEC seconds of pre-motion footage.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>02-scripts/camera.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 64</span>
-<span class="normal"> 65</span>
-<span class="normal"> 66</span>
-<span class="normal"> 67</span>
-<span class="normal"> 68</span>
-<span class="normal"> 69</span>
-<span class="normal"> 70</span>
-<span class="normal"> 71</span>
-<span class="normal"> 72</span>
-<span class="normal"> 73</span>
-<span class="normal"> 74</span>
-<span class="normal"> 75</span>
-<span class="normal"> 76</span>
-<span class="normal"> 77</span>
-<span class="normal"> 78</span>
-<span class="normal"> 79</span>
-<span class="normal"> 80</span>
-<span class="normal"> 81</span>
-<span class="normal"> 82</span>
-<span class="normal"> 83</span>
-<span class="normal"> 84</span>
-<span class="normal"> 85</span>
-<span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
-<span class="normal"> 90</span>
-<span class="normal"> 91</span>
-<span class="normal"> 92</span>
-<span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span>
-<span class="normal">107</span>
-<span class="normal">108</span>
-<span class="normal">109</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">stop_recording</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stop writing to the current clip file and convert to MP4.</span>
-
-<span class="sd">    Closes the .h264 file, remuxes it to .mp4 with ffmpeg (-c:v copy so no</span>
-<span class="sd">    re-encode), then deletes the .h264 source. The circular buffer continues</span>
-<span class="sd">    capturing — the next start_recording() call will again include</span>
-<span class="sd">    PRE_ROLL_SEC seconds of pre-motion footage.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">global</span> <span class="n">_h264_file</span>
-    <span class="n">_circular</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
-
-    <span class="n">h264_path</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">if</span> <span class="n">_h264_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">h264_path</span> <span class="o">=</span> <span class="n">_h264_file</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">_h264_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-        <span class="n">_h264_file</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">_circular</span><span class="o">.</span><span class="n">fileoutput</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="k">if</span> <span class="n">h264_path</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">h264_path</span><span class="p">):</span>
-        <span class="n">mp4_path</span> <span class="o">=</span> <span class="n">h264_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.h264&quot;</span><span class="p">,</span> <span class="s2">&quot;.mp4&quot;</span><span class="p">)</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-                <span class="p">[</span>
-                    <span class="s2">&quot;ffmpeg&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;-y&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;-f&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;h264&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;-framerate&quot;</span><span class="p">,</span>
-                    <span class="nb">str</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">FPS</span><span class="p">),</span>
-                    <span class="s2">&quot;-i&quot;</span><span class="p">,</span>
-                    <span class="n">h264_path</span><span class="p">,</span>
-                    <span class="s2">&quot;-c:v&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;copy&quot;</span><span class="p">,</span>
-                    <span class="n">mp4_path</span><span class="p">,</span>
-                <span class="p">],</span>
-                <span class="n">timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-                <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
-                <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING: ffmpeg conversion timed out after 30s&quot;</span><span class="p">)</span>
-        <span class="k">finally</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">h264_path</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-                <span class="k">pass</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div><h2 id="motion_detector_1">motion_detector</h2>
+</div><h2 id="camera">camera</h2>
+<p><code>camera.py</code> acquires the Picamera2 hardware, H264 encoder, and CircularOutput at module import time, so mkdocstrings cannot auto-import it on non-Pi machines. Public API is documented here manually.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_frame()</code></td>
+<td>Capture a single BGR frame from the live feed. Returns <code>numpy.ndarray</code>.</td>
+</tr>
+<tr>
+<td><code>start_recording(filepath)</code></td>
+<td>Tap the ring buffer into a <code>.h264</code> file. Pre-roll is flushed first.</td>
+</tr>
+<tr>
+<td><code>split_recording(new_filepath, on_complete=None)</code></td>
+<td>Switch to a new clip file without clearing the ring buffer. Old clip is converted to MP4 in a background thread; <code>on_complete(mp4_path)</code> is called on success.</td>
+</tr>
+<tr>
+<td><code>stop_recording(on_complete=None)</code></td>
+<td>Stop writing, convert to MP4 in background. <code>on_complete(mp4_path)</code> called on success.</td>
+</tr>
+<tr>
+<td><code>close()</code></td>
+<td>Shut down the encoder and release the hardware.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="motion_detector_1">motion_detector</h2>
 
 
 <div class="doc doc-object doc-module">
@@ -1539,6 +1125,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
                 <code>frame</code>
             </td>
             <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1564,6 +1151,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>tuple</code></td>            <td>
+                  <code><span title="bool">bool</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1573,6 +1161,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
           </tr>
           <tr class="doc-section-item">
 <td></td>            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1586,9 +1175,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/motion_detector.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 27</span>
-<span class="normal"> 28</span>
-<span class="normal"> 29</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 29</span>
 <span class="normal"> 30</span>
 <span class="normal"> 31</span>
 <span class="normal"> 32</span>
@@ -1665,7 +1252,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
 <span class="normal">103</span>
 <span class="normal">104</span>
 <span class="normal">105</span>
-<span class="normal">106</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">):</span>
+<span class="normal">106</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Analyse a frame for motion — layered filter pipeline.</span>
 
 <span class="sd">    The pipeline runs four stages in order. Each stage must pass before the</span>
@@ -1689,7 +1276,7 @@ flickering noise cannot accumulate credit across interruptions.</p>
 <span class="sd">        tuple: (motion_detected, frame) where motion_detected is a bool</span>
 <span class="sd">        and frame is the original frame unchanged.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">global</span> <span class="n">_consecutive_motion_frames</span><span class="p">,</span> <span class="n">_centroid_history</span>
+    <span class="k">global</span> <span class="n">_consecutive_motion_frames</span>
 
     <span class="n">fg_mask</span> <span class="o">=</span> <span class="n">_bg_subtractor</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
     <span class="n">contours</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">findContours</span><span class="p">(</span><span class="n">fg_mask</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">RETR_EXTERNAL</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">CHAIN_APPROX_SIMPLE</span><span class="p">)</span>
@@ -1733,8 +1320,6 @@ flickering noise cannot accumulate credit across interruptions.</p>
         <span class="n">cx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">M</span><span class="p">[</span><span class="s2">&quot;m10&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">M</span><span class="p">[</span><span class="s2">&quot;m00&quot;</span><span class="p">])</span>
         <span class="n">cy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">M</span><span class="p">[</span><span class="s2">&quot;m01&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">M</span><span class="p">[</span><span class="s2">&quot;m00&quot;</span><span class="p">])</span>
         <span class="n">_centroid_history</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">cx</span><span class="p">,</span> <span class="n">cy</span><span class="p">))</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">_centroid_history</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">CENTROID_HISTORY_LEN</span><span class="p">:</span>
-            <span class="n">_centroid_history</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
     <span class="c1"># --- Filter 3: consecutive-frame gate ---</span>
     <span class="c1"># Require MIN_CONSECUTIVE_FRAMES successive frames to all pass Filters 1</span>
@@ -1778,6 +1363,7 @@ signal while only new clips and alerts are cooldown-gated.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>bool</code></td>            <td>
+                  <code><span title="bool">bool</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1805,7 +1391,7 @@ signal while only new clips and alerts are cooldown-gated.</p>
 <span class="normal">120</span>
 <span class="normal">121</span>
 <span class="normal">122</span>
-<span class="normal">123</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">new_event_allowed</span><span class="p">():</span>
+<span class="normal">123</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">new_event_allowed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True if enough time has passed to treat this as a new motion event.</span>
 
 <span class="sd">    Separate from detect() so the recording loop can key off the raw motion</span>
@@ -1845,23 +1431,23 @@ state from the previous clip.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/motion_detector.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">15</span>
-<span class="normal">16</span>
-<span class="normal">17</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">17</span>
 <span class="normal">18</span>
 <span class="normal">19</span>
 <span class="normal">20</span>
 <span class="normal">21</span>
 <span class="normal">22</span>
 <span class="normal">23</span>
-<span class="normal">24</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reset_motion_state</span><span class="p">():</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reset_motion_state</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset per-event filter counters.</span>
 
 <span class="sd">    Call when a recording session ends so the next motion event must earn</span>
 <span class="sd">    its consecutive-frame count from scratch rather than inheriting leftover</span>
 <span class="sd">    state from the previous clip.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">global</span> <span class="n">_consecutive_motion_frames</span><span class="p">,</span> <span class="n">_centroid_history</span>
+    <span class="k">global</span> <span class="n">_consecutive_motion_frames</span>
     <span class="n">_consecutive_motion_frames</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">_centroid_history</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 </code></pre></div></td></tr></table></div>
@@ -1924,6 +1510,11 @@ already exist.</p>
     <div class="doc doc-contents ">
 
         <p>Delete clips and snapshots older than the given number of days.</p>
+<p>Only scans the top level of CLIPS_DIR — manually archived subdirectories
+(e.g. daytime-2026-07-14/) are skipped and are the operator's responsibility
+to manage. Orphaned .h264 files (evidence of a failed ffmpeg conversion) are
+removed only when older than _H264_ORPHAN_AGE_SEC so that an in-flight
+conversion is never unlinked mid-write (#66).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1942,6 +1533,7 @@ already exist.</p>
                 <code>days</code>
             </td>
             <td>
+                  <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1958,9 +1550,7 @@ already exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/storage.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">71</span>
 <span class="normal">72</span>
 <span class="normal">73</span>
 <span class="normal">74</span>
@@ -1968,17 +1558,49 @@ already exist.</p>
 <span class="normal">76</span>
 <span class="normal">77</span>
 <span class="normal">78</span>
-<span class="normal">79</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_old_clips</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">):</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_old_clips</span><span class="p">(</span><span class="n">days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Delete clips and snapshots older than the given number of days.</span>
+
+<span class="sd">    Only scans the top level of CLIPS_DIR — manually archived subdirectories</span>
+<span class="sd">    (e.g. daytime-2026-07-14/) are skipped and are the operator&#39;s responsibility</span>
+<span class="sd">    to manage. Orphaned .h264 files (evidence of a failed ffmpeg conversion) are</span>
+<span class="sd">    removed only when older than _H264_ORPHAN_AGE_SEC so that an in-flight</span>
+<span class="sd">    conversion is never unlinked mid-write (#66).</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        days: Files older than this many days are removed. Defaults to 7.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">cutoff</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="p">(</span><span class="n">days</span> <span class="o">*</span> <span class="mi">86400</span><span class="p">)</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">cutoff</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="p">(</span><span class="n">days</span> <span class="o">*</span> <span class="mi">86400</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">CLIPS_DIR</span><span class="p">):</span>
         <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">CLIPS_DIR</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">cutoff</span><span class="p">:</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.h264&quot;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">_H264_ORPHAN_AGE_SEC</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">cutoff</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="k">pass</span>  <span class="c1"># another thread removed the file between the check and the delete</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2010,10 +1632,11 @@ already exist.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Path in the form clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.</p>
+                <p>Path in the form 00-clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.</p>
               </div>
             </td>
           </tr>
@@ -2023,7 +1646,10 @@ already exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/storage.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">40</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
 <span class="normal">41</span>
 <span class="normal">42</span>
 <span class="normal">43</span>
@@ -2032,14 +1658,11 @@ already exist.</p>
 <span class="normal">46</span>
 <span class="normal">47</span>
 <span class="normal">48</span>
-<span class="normal">49</span>
-<span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_snapshot_path</span><span class="p">():</span>
+<span class="normal">49</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_snapshot_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a timestamped file path for a new snapshot image.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        str: Path in the form clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.</span>
+<span class="sd">        str: Path in the form 00-clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Almost identical to get_video_path() — the only differences are the</span>
     <span class="c1"># prefix (snapshot_ instead of motion_) and the extension</span>
@@ -2079,10 +1702,11 @@ already exist.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Path in the form clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.</p>
+                <p>Path in the form 00-clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.</p>
               </div>
             </td>
           </tr>
@@ -2092,8 +1716,7 @@ already exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/storage.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">24</span>
-<span class="normal">25</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">25</span>
 <span class="normal">26</span>
 <span class="normal">27</span>
 <span class="normal">28</span>
@@ -2102,22 +1725,15 @@ already exist.</p>
 <span class="normal">31</span>
 <span class="normal">32</span>
 <span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_video_path</span><span class="p">():</span>
+<span class="normal">34</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_video_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a timestamped file path for a new video clip.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        str: Path in the form clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.</span>
+<span class="sd">        str: Path in the form 00-clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">_%H-%M-%S&quot;</span><span class="p">)</span>
-    <span class="c1"># gets current date and time and formats the the string ie:2026-06-20_21-30-00</span>
-
     <span class="n">filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;motion_</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">.mp4&quot;</span>
-    <span class="c1"># sets the name of the recording file</span>
-
     <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">CLIPS_DIR</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2155,6 +1771,7 @@ already exist.</p>
                 <code>frame</code>
             </td>
             <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2180,6 +1797,7 @@ already exist.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2193,7 +1811,10 @@ already exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/storage.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">55</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
 <span class="normal">56</span>
 <span class="normal">57</span>
 <span class="normal">58</span>
@@ -2203,8 +1824,7 @@ already exist.</p>
 <span class="normal">62</span>
 <span class="normal">63</span>
 <span class="normal">64</span>
-<span class="normal">65</span>
-<span class="normal">66</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save_snapshot</span><span class="p">(</span><span class="n">frame</span><span class="p">):</span>
+<span class="normal">65</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save_snapshot</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Save a single frame to disk as a JPEG image.</span>
 
 <span class="sd">    Args:</span>
@@ -2214,7 +1834,9 @@ already exist.</p>
 <span class="sd">        str: The path where the snapshot was saved.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">path</span> <span class="o">=</span> <span class="n">get_snapshot_path</span><span class="p">()</span>
-    <span class="n">cv2</span><span class="o">.</span><span class="n">imwrite</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+    <span class="n">ok</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">imwrite</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cv2.imwrite failed — could not write snapshot to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">path</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2240,7 +1862,8 @@ already exist.</p>
 
         <p>Telegram notification sender for the PI Camera system.</p>
 <p>Sends snapshot photos and text messages to a Telegram chat via the Bot API.
-No cooldown is applied here — gate alerts upstream with motion_detector.new_event_allowed().</p>
+send_photo() enforces NOTIFICATION_COOLDOWN_SEC between alerts so that rapid
+re-triggers don't flood the chat. send_message() (clip-ready links) always sends.</p>
 
 
 
@@ -2292,6 +1915,7 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
                 <code>text</code>
             </td>
             <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2308,21 +1932,24 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/telegram_notifier.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">31</span>
-<span class="normal">32</span>
-<span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">send_message</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">send_message</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a plain text message to the configured Telegram chat.</span>
 
 <span class="sd">    Args:</span>
@@ -2330,13 +1957,16 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;https://api.telegram.org/bot</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">TELEGRAM_BOT_TOKEN</span><span class="si">}</span><span class="s2">/sendMessage&quot;</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
             <span class="n">url</span><span class="p">,</span>
             <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;chat_id&quot;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">TELEGRAM_CHAT_ID</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">text</span><span class="p">},</span>
             <span class="n">timeout</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ok&quot;</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_message API error: </span><span class="si">{</span><span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_message failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_message failed: </span><span class="si">{</span><span class="n">_safe_err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2355,6 +1985,8 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
     <div class="doc doc-contents ">
 
         <p>Send a JPEG image to the configured Telegram chat.</p>
+<p>Skipped silently if called within NOTIFICATION_COOLDOWN_SEC of the last
+successful send, so rapid re-triggers don't flood the chat.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2373,6 +2005,7 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
                 <code>image_path</code>
             </td>
             <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2388,6 +2021,7 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
                 <code>caption</code>
             </td>
             <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2404,41 +2038,65 @@ No cooldown is applied here — gate alerts upstream with motion_detector.new_ev
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/telegram_notifier.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">11</span>
-<span class="normal">12</span>
-<span class="normal">13</span>
-<span class="normal">14</span>
-<span class="normal">15</span>
-<span class="normal">16</span>
-<span class="normal">17</span>
-<span class="normal">18</span>
-<span class="normal">19</span>
-<span class="normal">20</span>
-<span class="normal">21</span>
-<span class="normal">22</span>
-<span class="normal">23</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">23</span>
 <span class="normal">24</span>
 <span class="normal">25</span>
 <span class="normal">26</span>
 <span class="normal">27</span>
-<span class="normal">28</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">send_photo</span><span class="p">(</span><span class="n">image_path</span><span class="p">,</span> <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Motion detected!&quot;</span><span class="p">):</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">send_photo</span><span class="p">(</span><span class="n">image_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">caption</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Motion detected!&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a JPEG image to the configured Telegram chat.</span>
+
+<span class="sd">    Skipped silently if called within NOTIFICATION_COOLDOWN_SEC of the last</span>
+<span class="sd">    successful send, so rapid re-triggers don&#39;t flood the chat.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        image_path: Path to the .jpg file to send.</span>
 <span class="sd">        caption: Text shown below the photo. Defaults to &quot;Motion detected!&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_last_photo_sent</span>
+    <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">_last_photo_sent</span> <span class="o">&lt;</span> <span class="n">config</span><span class="o">.</span><span class="n">NOTIFICATION_COOLDOWN_SEC</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[telegram] send_photo suppressed — within cooldown window&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
     <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;https://api.telegram.org/bot</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">TELEGRAM_BOT_TOKEN</span><span class="si">}</span><span class="s2">/sendPhoto&quot;</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">image_path</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
                 <span class="n">url</span><span class="p">,</span>
                 <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;chat_id&quot;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">TELEGRAM_CHAT_ID</span><span class="p">,</span> <span class="s2">&quot;caption&quot;</span><span class="p">:</span> <span class="n">caption</span><span class="p">},</span>
                 <span class="n">files</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;photo&quot;</span><span class="p">:</span> <span class="n">f</span><span class="p">},</span>
                 <span class="n">timeout</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
             <span class="p">)</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ok&quot;</span><span class="p">):</span>
+            <span class="n">_last_photo_sent</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_photo API error: </span><span class="si">{</span><span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_photo failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[telegram] send_photo failed: </span><span class="si">{</span><span class="n">_safe_err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2515,6 +2173,7 @@ Uses the refresh token flow so credentials never expire.</p>
                 <code>filepath</code>
             </td>
             <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2540,6 +2199,7 @@ Uses the refresh token flow so credentials never expire.</p>
       <tbody>
           <tr class="doc-section-item">
 <td><code>str</code></td>            <td>
+                  <code><span title="str">str</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2553,20 +2213,7 @@ Uses the refresh token flow so credentials never expire.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/dropbox_uploader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">46</span>
 <span class="normal">47</span>
 <span class="normal">48</span>
 <span class="normal">49</span>
@@ -2594,7 +2241,29 @@ Uses the refresh token flow so credentials never expire.</p>
 <span class="normal">71</span>
 <span class="normal">72</span>
 <span class="normal">73</span>
-<span class="normal">74</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">upload</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">upload</span><span class="p">(</span><span class="n">filepath</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Upload a file to Dropbox and return a shareable link.</span>
 
 <span class="sd">    Args:</span>
@@ -2604,6 +2273,15 @@ Uses the refresh token flow so credentials never expire.</p>
 <span class="sd">        str: A shareable URL, or None if the upload failed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">try</span><span class="p">:</span>
+        <span class="n">file_size</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">file_size</span> <span class="o">&gt;</span> <span class="n">_UPLOAD_MAX_BYTES</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;[dropbox] </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">file_size</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1024</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1024</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> MB &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;— exceeds the </span><span class="si">{</span><span class="n">_UPLOAD_MAX_BYTES</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">1024</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">1024</span><span class="si">}</span><span class="s2"> MB /files/upload limit. &quot;</span>
+                <span class="s2">&quot;Upload skipped. Use upload sessions for large files.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
         <span class="n">token</span> <span class="o">=</span> <span class="n">_get_access_token</span><span class="p">()</span>
         <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
         <span class="n">dropbox_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;/PI_Camera/</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -2613,7 +2291,7 @@ Uses the refresh token flow so credentials never expire.</p>
                 <span class="n">_UPLOAD_URL</span><span class="p">,</span>
                 <span class="n">headers</span><span class="o">=</span><span class="p">{</span>
                     <span class="s2">&quot;Authorization&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;Dropbox-API-Arg&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">&quot;path&quot;: &quot;</span><span class="si">{</span><span class="n">dropbox_path</span><span class="si">}</span><span class="s1">&quot;, &quot;mode&quot;: &quot;add&quot;</span><span class="se">}}</span><span class="s1">&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;Dropbox-API-Arg&quot;</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="n">dropbox_path</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">}),</span>
                     <span class="s2">&quot;Content-Type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/octet-stream&quot;</span><span class="p">,</span>
                 <span class="p">},</span>
                 <span class="n">data</span><span class="o">=</span><span class="n">f</span><span class="p">,</span>
@@ -2697,10 +2375,7 @@ Uses the refresh token flow so credentials never expire.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>02-scripts/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 89</span>
 <span class="normal"> 90</span>
 <span class="normal"> 91</span>
 <span class="normal"> 92</span>
@@ -2756,66 +2431,109 @@ Uses the refresh token flow so credentials never expire.</p>
 <span class="normal">142</span>
 <span class="normal">143</span>
 <span class="normal">144</span>
-<span class="normal">145</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the camera loop — detect motion, record clips, and send alerts.&quot;&quot;&quot;</span>
 
+    <span class="k">global</span> <span class="n">_currently_recording</span>
     <span class="n">_validate_config</span><span class="p">()</span>
 
     <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">filepath</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">last_cleanup</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="mf">0.0</span>
-    <span class="n">recording_started</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">consecutive_errors</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">_MAX_CONSECUTIVE_ERRORS</span> <span class="o">=</span> <span class="mi">10</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;PI Camera started. Press Ctrl+C to stop.&quot;</span><span class="p">)</span>
 
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">last_cleanup</span> <span class="o">&gt;</span> <span class="mi">86400</span><span class="p">:</span>
-            <span class="n">storage</span><span class="o">.</span><span class="n">cleanup_old_clips</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
-            <span class="n">last_cleanup</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">last_cleanup</span> <span class="o">&gt;</span> <span class="mi">86400</span><span class="p">:</span>
+                <span class="n">storage</span><span class="o">.</span><span class="n">cleanup_old_clips</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+                <span class="n">last_cleanup</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
 
-        <span class="n">frame</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">get_frame</span><span class="p">()</span>
-        <span class="n">motion</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">frame</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">get_frame</span><span class="p">()</span>
+            <span class="n">motion</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
 
-        <span class="k">if</span> <span class="n">motion</span><span class="p">:</span>
-            <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
+            <span class="n">consecutive_errors</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="k">if</span> <span class="n">motion</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">currently_recording</span> <span class="ow">and</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">new_event_allowed</span><span class="p">():</span>
-            <span class="n">filepath</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">get_video_path</span><span class="p">()</span>
-            <span class="n">camera</span><span class="o">.</span><span class="n">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
-            <span class="n">snapshot</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">save_snapshot</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-            <span class="n">telegram_notifier</span><span class="o">.</span><span class="n">send_photo</span><span class="p">(</span><span class="n">snapshot</span><span class="p">,</span> <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Motion detected!&quot;</span><span class="p">)</span>
-            <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="n">recording_started</span> <span class="o">=</span> <span class="n">now</span>
-            <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
-            <span class="n">_arm_watchdog</span><span class="p">()</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Motion detected — recording to </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">motion</span><span class="p">:</span>
+                <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
 
-        <span class="k">if</span> <span class="n">currently_recording</span><span class="p">:</span>
-            <span class="n">time_recording</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">recording_started</span>
-            <span class="n">time_since_motion</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">motion_last_seen</span>
-
-            <span class="k">if</span> <span class="n">_split_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
-                <span class="c1"># Watchdog fired — MAX_RECORD_SEC elapsed on a background timer</span>
-                <span class="c1"># so this fires even if get_frame() was slow (#23).</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Watchdog: MAX_RECORD_SEC reached — splitting clip.&quot;</span><span class="p">)</span>
-                <span class="n">clip_to_upload</span> <span class="o">=</span> <span class="n">filepath</span>
-                <span class="n">_finish_clip</span><span class="p">(</span><span class="n">clip_to_upload</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">motion</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">currently_recording</span> <span class="ow">and</span> <span class="n">motion_detector</span><span class="o">.</span><span class="n">new_event_allowed</span><span class="p">():</span>
                 <span class="n">filepath</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">get_video_path</span><span class="p">()</span>
                 <span class="n">camera</span><span class="o">.</span><span class="n">start_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
-                <span class="n">recording_started</span> <span class="o">=</span> <span class="n">now</span>
-                <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
                 <span class="n">_arm_watchdog</span><span class="p">()</span>
+                <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">_currently_recording</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Motion detected — recording to </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">snapshot</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">save_snapshot</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+                    <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span>
+                        <span class="n">target</span><span class="o">=</span><span class="n">telegram_notifier</span><span class="o">.</span><span class="n">send_photo</span><span class="p">,</span>
+                        <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">snapshot</span><span class="p">,),</span>
+                        <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;caption&quot;</span><span class="p">:</span> <span class="s2">&quot;Motion detected!&quot;</span><span class="p">},</span>
+                        <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[main] snapshot failed — recording continues without alert: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-            <span class="k">elif</span> <span class="p">(</span>
-                <span class="n">time_recording</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">MIN_RECORD_SEC</span>
-                <span class="ow">and</span> <span class="n">time_since_motion</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">POST_MOTION_BUFFER_SEC</span>
-            <span class="p">):</span>
-                <span class="n">clip_to_upload</span> <span class="o">=</span> <span class="n">filepath</span>
-                <span class="n">filepath</span> <span class="o">=</span> <span class="kc">None</span>
-                <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
-                <span class="n">_finish_clip</span><span class="p">(</span><span class="n">clip_to_upload</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">currently_recording</span><span class="p">:</span>
+                <span class="n">time_since_motion</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">motion_last_seen</span>
+
+                <span class="k">if</span> <span class="n">_split_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
+                    <span class="c1"># Watchdog fired — MAX_RECORD_SEC elapsed on a background timer</span>
+                    <span class="c1"># so this fires even if get_frame() was slow (#23).</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Watchdog: MAX_RECORD_SEC reached — splitting clip.&quot;</span><span class="p">)</span>
+                    <span class="n">filepath</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">get_video_path</span><span class="p">()</span>
+
+                    <span class="n">camera</span><span class="o">.</span><span class="n">split_recording</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">on_complete</span><span class="o">=</span><span class="n">_upload_and_notify</span><span class="p">)</span>
+                    <span class="n">motion_detector</span><span class="o">.</span><span class="n">reset_motion_state</span><span class="p">()</span>
+                    <span class="n">motion_last_seen</span> <span class="o">=</span> <span class="n">now</span>
+                    <span class="n">_arm_watchdog</span><span class="p">()</span>
+
+                <span class="k">elif</span> <span class="n">time_since_motion</span> <span class="o">&gt;=</span> <span class="n">config</span><span class="o">.</span><span class="n">POST_MOTION_BUFFER_SEC</span><span class="p">:</span>
+                    <span class="n">filepath</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="n">currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="n">_currently_recording</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="n">_finish_clip</span><span class="p">()</span>
+
+        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyboardInterrupt</span><span class="p">,</span> <span class="ne">SystemExit</span><span class="p">):</span>
+            <span class="k">raise</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">consecutive_errors</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[main] frame error (</span><span class="si">{</span><span class="n">consecutive_errors</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">_MAX_CONSECUTIVE_ERRORS</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">consecutive_errors</span> <span class="o">&gt;=</span> <span class="n">_MAX_CONSECUTIVE_ERRORS</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;[main] </span><span class="si">{</span><span class="n">_MAX_CONSECUTIVE_ERRORS</span><span class="si">}</span><span class="s2"> consecutive errors — &quot;</span>
+                    <span class="s2">&quot;exiting so systemd can restart and re-initialise hardware&quot;</span>
+                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
