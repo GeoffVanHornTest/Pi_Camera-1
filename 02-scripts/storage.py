@@ -85,8 +85,11 @@ def cleanup_old_clips(days=7):
         path = os.path.join(config.CLIPS_DIR, filename)
         if not os.path.isfile(path):
             continue
-        if filename.endswith(".h264"):
-            if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+        try:
+            if filename.endswith(".h264"):
+                if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+                    os.remove(path)
+            elif os.path.getmtime(path) < cutoff:
                 os.remove(path)
-        elif os.path.getmtime(path) < cutoff:
-            os.remove(path)
+        except FileNotFoundError:
+            pass  # another thread removed the file between the check and the delete
