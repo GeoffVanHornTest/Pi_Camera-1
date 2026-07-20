@@ -125,3 +125,44 @@ def test_upload_and_notify_sends_failure_on_no_url(monkeypatch):
     monkeypatch.setattr(main.telegram_notifier, "send_message", mock_send)
     main._upload_and_notify("/clips/test.mp4")
     mock_send.assert_called_once_with("Clip recorded but Dropbox upload failed.")
+
+
+# --- #78: snapshot failure must not break recording state ---
+
+def test_recording_continues_when_snapshot_raises(monkeypatch):
+    """If save_snapshot() raises, currently_recording must still be set True.
+
+    A snapshot failure must not leave the camera recording while the main
+    loop thinks currently_recording is False — that would prevent the
+    POST_MOTION_BUFFER_SEC stop condition from ever firing.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    failing_snapshot = MagicMock(side_effect=RuntimeError("disk full"))
+    monkeypatch.setattr(main.storage, "save_snapshot", failing_snapshot)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+
+    # Recording must have started despite the snapshot failure
+    _mock_camera.start_recording.assert_called_once()

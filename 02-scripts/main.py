@@ -118,16 +118,19 @@ def main():
                 filepath = storage.get_video_path()
                 camera.start_recording(filepath)
                 _arm_watchdog()
-                snapshot = storage.save_snapshot(frame)
-                threading.Thread(
-                    target=telegram_notifier.send_photo,
-                    args=(snapshot,),
-                    kwargs={"caption": "Motion detected!"},
-                    daemon=True,
-                ).start()
                 currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
+                try:
+                    snapshot = storage.save_snapshot(frame)
+                    threading.Thread(
+                        target=telegram_notifier.send_photo,
+                        args=(snapshot,),
+                        kwargs={"caption": "Motion detected!"},
+                        daemon=True,
+                    ).start()
+                except Exception as e:
+                    print(f"[main] snapshot failed — recording continues without alert: {e}")
 
             if currently_recording:
                 time_since_motion = now - motion_last_seen
