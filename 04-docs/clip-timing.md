@@ -16,8 +16,8 @@ _camera.start_recording(_encoder, _circular)
 
 | Config key | Default | Effect |
 |---|---|---|
-| `PRE_ROLL_SEC` | 5 | Target pre-roll duration in seconds |
-| `VIDEO_BITRATE_BPS` | 4 000 000 | H264 encoder target bitrate — set explicitly to avoid picamera2's low default |
+| `PRE_ROLL_SEC` | 8 | Target pre-roll duration in seconds |
+| `VIDEO_BITRATE_BPS` | 2 500 000 | H264 encoder target bitrate — set explicitly to avoid picamera2's low default |
 | `FPS` | 30 | Frames per second; `PRE_ROLL_SEC × FPS` = buffer size in frames |
 
 ### Effective pre-roll is slightly less than `PRE_ROLL_SEC`
@@ -26,10 +26,10 @@ _camera.start_recording(_encoder, _circular)
 
 ```
 effective pre-roll = PRE_ROLL_SEC - keyframe_interval
-                   = 5s - 2s = 3s  (worst case)
+                   = 8s - 2s = 6s  (worst case)
 ```
 
-Observed pre-roll in field testing: **~3–5 seconds**, typically ~3s. This is accepted as sufficient. If tighter pre-roll is required, set `iperiod=15` on `H264Encoder` (0.5s keyframe interval → max loss 0.5s) or increase `PRE_ROLL_SEC` to compensate.
+Observed pre-roll in field testing: **~6–8 seconds**, typically ~6s. If tighter pre-roll is required, set `iperiod=15` on `H264Encoder` (0.5s keyframe interval → max loss 0.5s) or increase `PRE_ROLL_SEC` to compensate.
 
 ### Why the buffer is written to a file, not piped directly to ffmpeg
 
@@ -39,24 +39,9 @@ The solution: flush to a `.h264` file, then convert. ffmpeg probes a file and fi
 
 ---
 
-## Clip start — `MIN_RECORD_SEC`
-
-Once a motion event is allowed (`new_event_allowed()` passes the cooldown gate), `start_recording()` is called and a watchdog timer is armed. The clip will not stop until *both* of the following are true:
-
-1. `MIN_RECORD_SEC` has elapsed since recording started
-2. `POST_MOTION_BUFFER_SEC` has elapsed since motion was last detected
-
-`MIN_RECORD_SEC` prevents very short clips when motion stops immediately after triggering (e.g., someone passes quickly through the frame and the detector loses them). The recording keeps running even through brief gaps in detection.
-
-| Config key | Default |
-|---|---|
-| `MIN_RECORD_SEC` | 15s |
-
----
-
 ## Clip tail — `POST_MOTION_BUFFER_SEC`
 
-After `MIN_RECORD_SEC` has elapsed, the clip ends when motion has been continuously absent for `POST_MOTION_BUFFER_SEC`. Each new detected motion frame resets this countdown.
+Once a motion event is allowed (`new_event_allowed()` passes the cooldown gate), `start_recording()` is called. The clip ends when motion has been continuously absent for `POST_MOTION_BUFFER_SEC`. Each new detected motion frame resets this countdown.
 
 This acts as a trailing buffer — the clip continues a short time after the last movement so the subject is fully out of frame before recording stops.
 
@@ -64,7 +49,7 @@ This acts as a trailing buffer — the clip continues a short time after the las
 |---|---|
 | `POST_MOTION_BUFFER_SEC` | 20s |
 
-The theoretical minimum clip duration (no motion after the first detection) is `POST_MOTION_BUFFER_SEC` = 20s, since `MIN_RECORD_SEC` (15s) < `POST_MOTION_BUFFER_SEC` (20s).
+The minimum clip duration (no motion after the first detection) is `POST_MOTION_BUFFER_SEC` = 20s.
 
 ---
 
@@ -86,9 +71,7 @@ When `_split_event` fires the main loop splits the clip: the current file is fin
 
 ### Observed clip duration at watchdog split
 
-With `PRE_ROLL_SEC = 5` and `MAX_RECORD_SEC = 120`, clips that ran to the watchdog were measured at **~140s** total. The extra ~20s comes from the watchdog timer starting *after* the Telegram photo notification (`send_photo()`) returns — that network call is blocking and takes ~15–20s. Clip content begins accumulating from `start_recording()` but the 120s timer only starts after `_arm_watchdog()` is called.
-
-If clip-length precision matters, move `_arm_watchdog()` to immediately after `camera.start_recording()`, before any notification calls.
+With `PRE_ROLL_SEC = 8` and `MAX_RECORD_SEC = 120`, clips that run to the watchdog are **~128s** total: 8s pre-roll flushed at the start plus 120s of live recording. `_arm_watchdog()` is called immediately after `camera.start_recording()` so the timer is not delayed by the Telegram notification (which runs on a daemon thread).
 
 ---
 
@@ -107,13 +90,10 @@ This is separate from `POST_MOTION_BUFFER_SEC` — motion can be detected contin
 ## Timing summary
 
 ```
-                    ┌─ PRE_ROLL_SEC (5s nominal, ~3s effective) ─┐
+                    ┌─ PRE_ROLL_SEC (8s nominal, ~6s effective) ─┐
                     │                                             │
 ─────────────── ring buffer ─────────────────┬───── active recording ──────────────────
                                         TRIGGER                  │
-                                                                  │
-                    ├──── MIN_RECORD_SEC (15s) ────────────────┤  │
-                              (must elapse before stop check)       │
                                                                   │
                                             ├── POST_MOTION_BUFFER_SEC (20s) ──┤
                                                  (no motion for this long → stop)
@@ -124,4 +104,4 @@ This is separate from `POST_MOTION_BUFFER_SEC` — motion can be detected contin
 
 ### Notification cooldown
 
-Alert emails and Telegram messages have their own independent cooldown (`NOTIFICATION_COOLDOWN_SEC = 60s`) so a rapid sequence of clips does not flood the notification channel.
+Telegram alerts have their own independent cooldown (`NOTIFICATION_COOLDOWN_SEC = 60s`) so a rapid sequence of clips does not flood the notification channel.

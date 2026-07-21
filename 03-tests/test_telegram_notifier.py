@@ -96,3 +96,38 @@ def test_send_message_includes_text(monkeypatch):
         telegram_notifier.send_message("clip ready")
         data = mock_post.call_args[1]["data"]
         assert data["text"] == "clip ready"
+
+
+def test_safe_err_redacts_token(monkeypatch):
+    """_safe_err() must replace the bot token with *** in exception messages."""
+    monkeypatch.setattr("config.TELEGRAM_BOT_TOKEN", "secret-token-abc")
+    exc = Exception("Connection error: https://api.telegram.org/botsecret-token-abc/sendPhoto")
+    result = telegram_notifier._safe_err(exc)
+    assert "secret-token-abc" not in result
+    assert "***" in result
+
+
+def test_safe_err_no_token_returns_message(monkeypatch):
+    """_safe_err() must not crash when TELEGRAM_BOT_TOKEN is empty."""
+    monkeypatch.setattr("config.TELEGRAM_BOT_TOKEN", "")
+    exc = Exception("some error")
+    assert telegram_notifier._safe_err(exc) == "some error"
+
+
+def test_send_photo_exception_does_not_log_token(tmp_path, monkeypatch, capsys):
+    """send_photo() must not print the bot token when requests.post raises."""
+    monkeypatch.setattr("config.TELEGRAM_BOT_TOKEN", "secret-token-xyz")
+    monkeypatch.setattr("config.TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setattr(telegram_notifier, "_last_photo_sent", 0.0)
+
+    img = tmp_path / "snap.jpg"
+    img.write_bytes(b"fake jpeg")
+
+    with patch(
+        "telegram_notifier.requests.post",
+        side_effect=Exception("failed: https://api.telegram.org/botsecret-token-xyz/sendPhoto"),
+    ):
+        telegram_notifier.send_photo(str(img))
+
+    captured = capsys.readouterr()
+    assert "secret-token-xyz" not in captured.out

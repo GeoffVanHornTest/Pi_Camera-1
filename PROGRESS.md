@@ -5,14 +5,14 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-19)
+## Current state (2026-07-20)
 
 **Branch:** `main` — v0.4.0 released. Post-release fixes in progress (unreleased).
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 56 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
-`dropbox_uploader`. `camera.py` and `main.py` excluded (hardware-dependent).
+**Tests:** 76 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+`dropbox_uploader`, `main`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
 alignment). Reduced from 1080p/4Mbps to address frame-drop under concurrent load (#53).
@@ -26,22 +26,13 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 | # | Type | Title |
 |---|------|-------|
-| 36 | bug/high | No SIGTERM handler — deferred to pre-GUI (#29) |
-| 38 | security | Orphaned Google Cloud service account key on disk |
-| 37 | bug | cv2.imwrite() return value ignored |
-| 39 | bug | Telegram API response body never checked |
-| 40 | enhancement | main.py / camera.py have zero test coverage |
-| 41 | bug | combine_analysis.py crashes on empty input |
-| 53 | bug | Clips shorter than wall-clock time — frame drops under load |
-| 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated |
+| 88 | refactor | camera.py acquires hardware at import time — should be deferred to initialize() |
+| 60 | bug | Day/night brightness uses Blue channel only (cv2.mean index 0 on BGR frame) — hardware |
+| 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated — hardware |
 | 20 | enhancement | Improve day/night detection + AI snapshot validation |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |
 | 29 | enhancement | Web GUI — Flask + Tailscale (v0.5.0) |
-| 43 | maintenance | MIN_RECORD_SEC has no effect at current values |
-| 44 | maintenance | Deployed systemd service diverges from git-tracked version |
-| 51 | maintenance | cleanup_old_clips() skips subdirectories |
-| 52 | enhancement | Filename collision at same-second timestamps |
 
 **Data collected (issue #28):**
 
@@ -115,7 +106,7 @@ uv sync --dev
 
 ## `.env` File
 
-Create `02-scripts/.env`. **Never commit this file** — it is in `.gitignore`.
+Create `.env`. **Never commit this file** — it is in `.gitignore`.
 
 ```
 TELEGRAM_BOT_TOKEN=your_bot_token_from_BotFather
@@ -155,7 +146,7 @@ Copy `refresh_token` from the response.
 - [x] Install ffmpeg: `sudo apt install ffmpeg`
 - [x] Create venv with system-site-packages: `uv venv --system-site-packages`
 - [x] Install Python deps: `uv sync --dev`
-- [x] Fill in `02-scripts/.env` with Telegram and Dropbox credentials
+- [x] Fill in `.env` with Telegram and Dropbox credentials
 - [x] Supervised end-to-end test: clip recorded, Telegram snapshot received, Dropbox link received
 - [ ] Re-enable systemd service after calibration complete:
   ```bash
@@ -182,7 +173,7 @@ PI_Camera/
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 8-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (56 passing)
+├── 03-tests/                # pytest unit tests (76 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)

@@ -13,6 +13,7 @@ from datetime import datetime
 
 import config
 import cv2
+import numpy as np
 
 os.makedirs(config.CLIPS_DIR, exist_ok=True)
 # os.makedirs() creates the clips folder if it doesn't already exist.
@@ -21,7 +22,7 @@ os.makedirs(config.CLIPS_DIR, exist_ok=True)
 # guaranteed to exist before any file-saving functions are called.
 
 
-def get_video_path():
+def get_video_path() -> str:
     """Generate a timestamped file path for a new video clip.
 
     Returns:
@@ -33,7 +34,7 @@ def get_video_path():
     return os.path.join(config.CLIPS_DIR, filename)
 
 
-def get_snapshot_path():
+def get_snapshot_path() -> str:
     """Generate a timestamped file path for a new snapshot image.
 
     Returns:
@@ -48,7 +49,7 @@ def get_snapshot_path():
     return os.path.join(config.CLIPS_DIR, filename)
 
 
-def save_snapshot(frame):
+def save_snapshot(frame: np.ndarray) -> str:
     """Save a single frame to disk as a JPEG image.
 
     Args:
@@ -67,7 +68,7 @@ def save_snapshot(frame):
 _H264_ORPHAN_AGE_SEC = 300  # 5 min — long enough to never touch an in-flight conversion
 
 
-def cleanup_old_clips(days=7):
+def cleanup_old_clips(days: int = 7) -> None:
     """Delete clips and snapshots older than the given number of days.
 
     Only scans the top level of CLIPS_DIR — manually archived subdirectories
@@ -85,8 +86,11 @@ def cleanup_old_clips(days=7):
         path = os.path.join(config.CLIPS_DIR, filename)
         if not os.path.isfile(path):
             continue
-        if filename.endswith(".h264"):
-            if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+        try:
+            if filename.endswith(".h264"):
+                if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+                    os.remove(path)
+            elif os.path.getmtime(path) < cutoff:
                 os.remove(path)
-        elif os.path.getmtime(path) < cutoff:
-            os.remove(path)
+        except FileNotFoundError:
+            pass  # another thread removed the file between the check and the delete

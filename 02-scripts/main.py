@@ -24,6 +24,8 @@ import telegram_notifier
 # what get_frame() is doing. The main loop checks the event on every iteration.
 _watchdog = None
 _split_event = threading.Event()
+_currently_recording = False
+_MAX_CONSECUTIVE_ERRORS = 10
 
 
 def _arm_watchdog():
@@ -88,12 +90,14 @@ def _finish_clip():
 def main():
     """Run the camera loop — detect motion, record clips, and send alerts."""
 
+    global _currently_recording
     _validate_config()
 
     currently_recording = False
     filepath = None
     last_cleanup = 0
     motion_last_seen = 0.0
+    consecutive_errors = 0
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
@@ -107,6 +111,8 @@ def main():
             motion, _ = motion_detector.detect(frame)
             now = time.time()
 
+            consecutive_errors = 0
+
             if motion:
                 motion_last_seen = now
 
@@ -114,16 +120,20 @@ def main():
                 filepath = storage.get_video_path()
                 camera.start_recording(filepath)
                 _arm_watchdog()
-                snapshot = storage.save_snapshot(frame)
-                threading.Thread(
-                    target=telegram_notifier.send_photo,
-                    args=(snapshot,),
-                    kwargs={"caption": "Motion detected!"},
-                    daemon=True,
-                ).start()
                 currently_recording = True
+                _currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
+                try:
+                    snapshot = storage.save_snapshot(frame)
+                    threading.Thread(
+                        target=telegram_notifier.send_photo,
+                        args=(snapshot,),
+                        kwargs={"caption": "Motion detected!"},
+                        daemon=True,
+                    ).start()
+                except Exception as e:
+                    print(f"[main] snapshot failed — recording continues without alert: {e}")
 
             if currently_recording:
                 time_since_motion = now - motion_last_seen
@@ -142,18 +152,30 @@ def main():
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     filepath = None
                     currently_recording = False
+                    _currently_recording = False
                     _finish_clip()
 
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:
-            print(f"[main] frame error (skipping): {e}")
+            consecutive_errors += 1
+            print(f"[main] frame error ({consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}): {e}")
+            if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                raise RuntimeError(
+                    f"[main] {_MAX_CONSECUTIVE_ERRORS} consecutive errors — "
+                    "exiting so systemd can restart and re-initialise hardware"
+                ) from e
+            time.sleep(1)
 
 
 def _shutdown():
-    """Shared cleanup path for SIGTERM and KeyboardInterrupt."""
+    """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     print("\nStopping PI Camera...")
-    _cancel_watchdog()
+    if _currently_recording:
+        print("Recording in progress — finalising clip before exit...")
+        _finish_clip()
+    else:
+        _cancel_watchdog()
     camera.close()
     print("Camera released. Goodbye.")
     sys.exit(0)
@@ -164,4 +186,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        _shutdown()
+    except Exception:
         _shutdown()

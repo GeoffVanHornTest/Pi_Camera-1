@@ -100,6 +100,24 @@ def test_cleanup_skips_subdirectories(tmp_path, monkeypatch):
     assert old_file.exists()
 
 
+def test_cleanup_does_not_raise_if_file_deleted_concurrently(tmp_path, monkeypatch):
+    """cleanup_old_clips() must not raise if another thread removes a file mid-scan."""
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    old_file = tmp_path / "motion_old.mp4"
+    old_file.write_text("x")
+    old_time = __import__("time").time() - (8 * 86400)
+    __import__("os").utime(str(old_file), (old_time, old_time))
+
+    original_remove = os.remove
+
+    def remove_then_raise(path):
+        original_remove(path)
+        raise FileNotFoundError(f"already gone: {path}")
+
+    monkeypatch.setattr(storage.os, "remove", remove_then_raise)
+    storage.cleanup_old_clips(days=7)  # must not raise
+
+
 def test_save_snapshot_raises_if_imwrite_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
     monkeypatch.setattr(storage, "get_snapshot_path", lambda: str(tmp_path / "snap.jpg"))
