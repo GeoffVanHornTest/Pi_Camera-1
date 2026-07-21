@@ -191,3 +191,48 @@ def test_recording_continues_when_snapshot_raises(monkeypatch):
 
     # Recording must have started despite the snapshot failure
     _mock_camera.start_recording.assert_called_once()
+
+
+# --- #90: consecutive-error escalation ---
+
+def test_main_raises_after_max_consecutive_errors(monkeypatch):
+    """main() must raise RuntimeError after _MAX_CONSECUTIVE_ERRORS consecutive failures."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    failing_detect = MagicMock(side_effect=RuntimeError("cam fail"))
+    monkeypatch.setattr(main.motion_detector, "detect", failing_detect)
+
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+
+def test_consecutive_error_counter_resets_on_success(monkeypatch):
+    """A successful frame must reset the consecutive-error counter to zero."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] < 3:
+            raise RuntimeError("transient error")
+        if call_count[0] == 3:
+            return (False, frame)  # success — resets counter
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    # Should NOT raise RuntimeError — the counter reset on frame 3
+    with pytest.raises(KeyboardInterrupt):
+        main.main()

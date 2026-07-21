@@ -104,4 +104,4 @@ This is separate from `POST_MOTION_BUFFER_SEC` — motion can be detected contin
 
 ### Notification cooldown
 
-Alert emails and Telegram messages have their own independent cooldown (`NOTIFICATION_COOLDOWN_SEC = 60s`) so a rapid sequence of clips does not flood the notification channel.
+Telegram alerts have their own independent cooldown (`NOTIFICATION_COOLDOWN_SEC = 60s`) so a rapid sequence of clips does not flood the notification channel.

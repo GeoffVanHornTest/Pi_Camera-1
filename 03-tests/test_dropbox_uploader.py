@@ -188,3 +188,46 @@ def test_get_access_token_uses_refresh_token(monkeypatch):
     data = mock_post.call_args[1]["data"]
     assert data["refresh_token"] == "myrefresh"
     assert data["grant_type"] == "refresh_token"
+
+
+# --- #91: credential redaction in exception messages ---
+
+def test_safe_err_redacts_app_key(monkeypatch):
+    """_safe_err() must redact DROPBOX_APP_KEY from exception strings."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "supersecretkey")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", None)
+
+    result = dropbox_uploader._safe_err(Exception("error with supersecretkey in message"))
+    assert "supersecretkey" not in result
+    assert "***" in result
+
+
+def test_safe_err_redacts_cached_token(monkeypatch):
+    """_safe_err() must redact the cached access token from exception strings."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", "live-access-token")
+
+    result = dropbox_uploader._safe_err(Exception("Bearer live-access-token rejected"))
+    assert "live-access-token" not in result
+    assert "***" in result
+
+
+def test_upload_exception_does_not_log_credentials(tmp_path, monkeypatch, capsys):
+    """upload() exception output must not contain the app key."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "my-secret-app-key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "mysecret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "myrefresh")
+
+    clip = tmp_path / "motion.mp4"
+    clip.write_bytes(b"fake video")
+
+    with patch("dropbox_uploader.requests.post",
+               side_effect=Exception("my-secret-app-key leaked")):
+        dropbox_uploader.upload(str(clip))
+
+    captured = capsys.readouterr()
+    assert "my-secret-app-key" not in captured.out

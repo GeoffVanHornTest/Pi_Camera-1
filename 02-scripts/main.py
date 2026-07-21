@@ -25,6 +25,7 @@ import telegram_notifier
 _watchdog = None
 _split_event = threading.Event()
 _currently_recording = False
+_MAX_CONSECUTIVE_ERRORS = 10
 
 
 def _arm_watchdog():
@@ -97,7 +98,6 @@ def main():
     last_cleanup = 0
     motion_last_seen = 0.0
     consecutive_errors = 0
-    _MAX_CONSECUTIVE_ERRORS = 10
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
@@ -169,12 +169,13 @@ def main():
 
 
 def _shutdown():
-    """Shared cleanup path for SIGTERM and KeyboardInterrupt."""
+    """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     print("\nStopping PI Camera...")
     if _currently_recording:
         print("Recording in progress — finalising clip before exit...")
         _finish_clip()
-    _cancel_watchdog()
+    else:
+        _cancel_watchdog()
     camera.close()
     print("Camera released. Goodbye.")
     sys.exit(0)
@@ -185,4 +186,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        _shutdown()
+    except Exception:
         _shutdown()

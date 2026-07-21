@@ -140,7 +140,7 @@ def split_recording(new_filepath, on_complete=None):
 
     if old_h264_path and os.path.exists(old_h264_path):
         threading.Thread(
-            target=_convert_to_mp4, args=(old_h264_path, on_complete, elapsed), daemon=True
+            target=_convert_to_mp4, args=(old_h264_path, on_complete, elapsed), daemon=False
         ).start()
 
 
@@ -168,7 +168,7 @@ def stop_recording(on_complete=None):
 
     if h264_path and os.path.exists(h264_path):
         threading.Thread(
-            target=_convert_to_mp4, args=(h264_path, on_complete, elapsed), daemon=True
+            target=_convert_to_mp4, args=(h264_path, on_complete, elapsed), daemon=False
         ).start()
 
 

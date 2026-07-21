@@ -22,6 +22,19 @@ _cached_token = None
 _token_fetched_at = 0.0
 
 
+def _safe_err(exc):
+    """Return exc's string representation with Dropbox credentials redacted."""
+    msg = str(exc)
+    for secret in filter(None, [
+        config.DROPBOX_APP_KEY,
+        config.DROPBOX_APP_SECRET,
+        config.DROPBOX_REFRESH_TOKEN,
+        _cached_token,
+    ]):
+        msg = msg.replace(secret, "***")
+    return msg
+
+
 def _get_access_token():
     """Return a valid access token, fetching a new one only when the cached token has expired."""
     global _cached_token, _token_fetched_at
@@ -92,5 +105,5 @@ def upload(filepath: str) -> str | None:
         return share_response.json().get("url")
 
     except Exception as e:
-        print(f"Dropbox upload failed: {e}")
+        print(f"[dropbox] upload failed: {_safe_err(e)}")
         return None
