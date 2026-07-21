@@ -1,8 +1,43 @@
 # Alternative Notification Plan — Telegram + Google Drive
 
 **Status:** Planning only — no existing code changed.
-**Replaces:** `notifier.py` email approach
-**Adds:** `telegram_notifier.py`, `drive_uploader.py`
+
+## Release roadmap
+
+| Version | Branch | Content | Status |
+|---------|--------|---------|--------|
+| v0.1.0 | `main` | Gmail SMTP | **released ✅** |
+| v0.2.0 | `feature/telegram-drive` | Telegram + Dropbox, recording overhaul, 8-script analysis suite | **released ✅** |
+| v0.3.0 | `feature/detection-filtering` | Blob coherence + consecutive-frame filter pipeline | in development |
+| v0.4.0 | `feature/timing-fixes` | Watchdog thread (#23), pre-record ring buffer (#27) | in development |
+| v0.5.0 | `feature/gui` | Flask web UI — live view, settings, scheduler, Dropbox FIFO | planned |
+
+---
+
+**This file covers v0.2.0 (Phase 1) and v0.3.0 (Phase 2).**
+
+---
+
+## Why Telegram and not Signal
+
+Signal was considered as an alternative. The comparison:
+
+| | Telegram | Signal |
+|---|---|---|
+| Bot / automation API | Official, purpose-built | None — requires `signal-cli` (community tool) |
+| Implementation | `requests.post` — no extra packages | Java runtime + phone number registration |
+| Encryption | Server-client (Telegram can read messages) | End-to-end by default |
+| Reliability | Stable official API | signal-cli can break when Signal updates servers |
+| Privacy | Closed-source server | Open-source protocol, stronger reputation |
+| Clip delivery | `sendVideo` up to 50 MB inline | Works via signal-cli but not seamless |
+
+**Decision: Telegram.** The content being sent is "Motion detected" + a driveway photo.
+The privacy risk of Telegram seeing that is low. Signal's E2E advantage is most meaningful
+for sensitive personal data (medical, financial, legal) — not home security alerts.
+The reliability and simplicity of the official Telegram Bot API are the right tradeoff here.
+
+Signal would be the correct choice for a deployment in a sensitive environment
+(law firm, medical practice, etc.) where the complexity of signal-cli is justified.
 
 ---
 
@@ -431,8 +466,234 @@ else:
 
 ### Implementation order
 
-1. Get Gmail path working end-to-end on real hardware (current path)
-2. Branch: implement Telegram + Drive backend (`alt_plan.md` Phase 1)
-3. Branch: build setup GUI — reads/writes `~/.config/pi-camera/settings.json`
-4. Merge: `notifier_factory.py` selects backend at runtime; both branches tested
-5. Remove `.env` from the recommended setup path (keep as CI/headless fallback only)
+1. ~~Get Gmail path working end-to-end on real hardware~~ — done, released as v0.1.0
+2. `feature/telegram-drive` — implement Telegram + Dropbox backend, release as v0.2.0
+3. `feature/setup-gui` — Tkinter GUI + `notifier_factory.py`, release as v0.3.0
+4. `.env` becomes CI/headless fallback only once the GUI is the standard setup path
+
+---
+
+## Motion detection tuning (in progress on feature/telegram-drive)
+
+### Day/night threshold auto-switching
+Uses mean frame brightness to select threshold at runtime:
+- `MOTION_THRESHOLD_DAY = 10000` — daylight mode
+- `MOTION_THRESHOLD_NIGHT = 25000` — IR/dark mode
+- `BRIGHTNESS_THRESHOLD = 60` — mean pixel value below this = night mode
+
+Better IR detection (E-01, future): check if R≈G≈B (channels converge in IR) rather
+than relying on brightness alone. Handles edge case where a bright grey room triggers
+night mode incorrectly.
+
+### Diagnostic snapshot validator (E-02, future — offline only)
+Optional troubleshooting tool, gated by `ENABLE_SNAPSHOT_VALIDATION = False` in config.
+When enabled, runs OpenCV HOG person detector on each snapshot and logs results to CSV:
+timestamp, contour_area, brightness, person_detected, threshold_used.
+
+- **No API key or internet required** — runs entirely on-device using OpenCV's built-in
+  pre-trained HOG + SVM pedestrian detector
+- Runs in the background upload thread, does not block the main loop
+- Purpose is calibration data collection only — not a real-time filter
+- GUI (v0.3.0) will expose the toggle for easy enable/disable
+
+---
+
+## Phase 3 — Noise suppression and body identification algorithm (v0.4.0)
+
+### Motivation
+
+The 8-script diagnostic suite (added 2026-07-14) confirmed that the current MOG2
+pixel-count trigger produces significant false positives from:
+- Wall reflections (light sweeping across surfaces)
+- Small objects moving in the frame (plants, outdoor objects through window)
+- MOG2 background drift under gradual lighting changes (morning light rise)
+
+238 confirmed false-trigger clips were recorded in a single 90-minute daytime session
+after camera repositioning. The scoring system misclassified 235 of 238 as PERSON or
+LIKELY_PERSON. A more robust detection algorithm is needed before the system is
+reliable enough to act on without manual review.
+
+### Data collection plan
+
+Five ground-truth datasets, collected before algorithm development begins:
+
+| # | Position | Time of day | Status | Purpose |
+|---|----------|------------|--------|---------|
+| 1 | Original | Day | Done — 238 clips (2026-07-14) | Empty-room day baseline, original position |
+| 2 | New (repositioned) | Day | Done — 18 clips (2026-07-15) | Empty-room day baseline, new position |
+| 3 | New | Night | Planned | Empty-room night baseline, new position |
+| 4 | Original (approx) | Night | Planned | Empty-room night baseline, original position |
+| 5 | TBD | Day (supervised) | Planned | Labelled person clips — short session, operator present |
+
+Dataset 5 is a dedicated supervised run: the operator is physically present and can
+label clips in real time as valid or false. This gives a clean positive class for
+algorithm training without ambiguity.
+
+### Pre-algorithm review step
+
+Before writing any code, review the heatmap PNGs from datasets 1 and 2 to manually
+identify and annotate noise zones:
+- Which frame regions correspond to wall reflections
+- Which correspond to the outdoor object visible through the window
+- Where confirmed person motion appears (from the 2026-07-15 11:01 staircase clip)
+
+This annotation is the ground truth that calibrates the algorithm. It cannot be
+derived automatically.
+
+### Algorithm approach (proposed)
+
+A layered filter pipeline in `motion_detector.py`, each layer independently rejectable
+via config flags so they can be toggled during calibration:
+
+**Layer 1 — Temporal filter (issue #26)**
+Require motion in N consecutive frames before triggering. Rejects single-frame
+flicker from reflections and IR artefacts.
+```python
+MOTION_CONSECUTIVE_FRAMES = 3  # ~200ms at 15fps
+```
+
+**Layer 2 — Spatial filter (issue #25)**
+Require the largest connected blob to exceed a minimum area. Rejects spatially
+dispersed noise (many tiny specks) that passes the pixel-count threshold.
+```python
+MIN_BLOB_AREA = TBD  # calibrate from dataset 1 vs dataset 5
+```
+
+**Layer 3 — Region-of-interest mask (new)**
+Allow motion detection only within a configured polygon mask. Zones identified
+during heatmap review (window, known reflection surfaces) can be excluded entirely.
+Mask defined in config as a list of (x, y) vertices, applied to the MOG2 foreground
+mask before any counting.
+```python
+ROI_MASK_VERTICES = []  # empty = full frame; populated after heatmap review
+```
+
+**Layer 4 — MOG2 learning rate (issue #22 fix F4)**
+Increase `learningRate` from default (~0.002) to `0.02` so the background model
+adapts faster to gradual lighting changes. Addresses Type B false triggers (MOG2
+drift under morning light rise).
+```python
+MOGS_LEARNING_RATE = 0.02
+```
+
+### Calibration workflow
+
+1. Collect all 5 datasets
+2. Review heatmaps — annotate noise zones, define ROI mask vertices
+3. Run Layer 1 + Layer 2 against datasets 1–4 (confirmed empty) — tune thresholds
+   until false trigger rate drops below a target (e.g. <5 clips per hour)
+4. Validate against dataset 5 (confirmed persons) — verify no true positives are lost
+5. Adjust thresholds at the boundary until both conditions hold
+6. Commit calibrated values to `config.py`, document in `CHANGELOG.md`
+
+### What this does NOT do
+
+This is a signal-filtering approach, not a classifier. It does not attempt to
+identify whether the moving object is a human — it only rejects motion patterns
+that are statistically unlikely to be human. A true person classifier (HOG, YOLO,
+etc.) is a possible future enhancement but requires significantly more compute and
+a labelled training set. E-02 (HOG snapshot validator) in the existing plan is the
+stepping stone toward that.
+
+---
+
+## Phase 4 — Web GUI (v0.5.0, feature/gui)
+
+Branch from `feature/timing-fixes` once that is validated on hardware.
+
+### Architecture
+
+**Flask** running as a service on the Pi + **Tailscale** for external access.
+
+- Flask serves an MJPEG stream (live camera view) and a REST API for settings and controls
+- Tailscale gives the Pi a stable private IP (`100.x.x.x`) accessible from any device
+  where Tailscale is installed — no port forwarding, no public URL, no router config
+- Free for personal use (1 user, 100 devices)
+- Basic password auth gates the whole UI (`GUI_PASSWORD` in `.env`)
+- **Cloudflare Tunnel** is the alternative if a public URL is needed (e.g. to share
+  access with others); requires `CLOUDFLARE_TUNNEL_TOKEN` in `.env`
+- All API keys remain in `.env` / `config.py` — never in the UI code
+
+### Implementation phases
+
+**Phase 4a — Core (local + Tailscale)**
+- Live MJPEG camera stream in browser
+- Settings panel — edit all `config.py` values via form, saves to `.env`
+- ARM / DISARM toggle — pauses motion detection without stopping the camera
+- System status bar — Pi CPU temp, SD card space, current mode (day/night), uptime
+- Force relearn button — resets MOG2 background model when camera is moved
+
+**Phase 4b — Scheduler + storage management**
+- Daily schedule — set arm/disarm times per day of week (no recording when home)
+- **Local clip storage** (primary archive — user-settable via GUI):
+  - `CLIPS_DIR` — storage location (default `00-clips/`, redirect to USB drive / external disk)
+  - `LOCAL_MAX_STORAGE_MB` — size cap; FIFO deletes oldest local clips when limit is reached
+  - Local cap is intentionally much larger than Dropbox (e.g. 50–500 GB on external media)
+  - Replaces the existing time-based `cleanup_old_clips(days=7)` with size-based FIFO
+- **Dropbox storage** (remote access copy — hard cap 2 GB free plan):
+  - `DROPBOX_MAX_STORAGE_MB` — size cap, default `1800` to leave headroom under the 2 GB limit
+  - FIFO deletes oldest Dropbox clips before each upload to stay within cap
+  - Dashboard shows used/total space and lists clips oldest-first
+- **Redundancy design**: the size gap between local and Dropbox caps is the recovery window.
+  Clips that Dropbox FIFO has already purged almost certainly still exist in local storage.
+  If a Dropbox clip is lost or accidentally deleted, the local copy is the fallback.
+
+**Phase 4c — Clip review and sensitivity tuning**
+- Clip gallery — thumbnails of local clips with playback; mark as person / false / delete
+  - Clip list respects `CLIPS_DIR` — works whether clips are on SD card or USB drive
+- Sensitivity sliders — live-adjust `MIN_BLOB_COHERENCE`, `MIN_CONSECUTIVE_FRAMES`,
+  `MOTION_THRESHOLD_DAY/NIGHT` and see the effect on the live stream
+- Zone editor — draw exclusion rectangles on the live view (e.g. the window with trees)
+- Motion overlay — highlight detected blobs on the live stream in real time
+
+**Phase 4d — External access (optional)**
+- Cloudflare Tunnel toggle — enable/disable from UI, token in `.env`
+- Event log — scrollable timeline of motion events with Telegram notification status
+- System health alerts — Telegram message if SD card > 80% full or Pi temp > 80°C
+
+### Additional feature ideas
+
+| Feature | Value |
+|---------|-------|
+| Snapshot gallery | Faster to scan than opening clips — grid of motion-start JPEGs |
+| Clip review labels | Mark clips person/false — builds a labelled dataset for future ML |
+| Download clips from UI | Stream clip directly from Pi without going to Dropbox |
+| Multi-day schedule | Different arm/disarm times per weekday vs weekend |
+| Live heatmap tab | Running heatmap of where triggers accumulate, rendered in browser |
+
+### New config keys
+
+```python
+# GUI
+GUI_PORT                = 8080
+GUI_PASSWORD            = os.getenv("GUI_PASSWORD")
+
+# External access (choose one)
+TAILSCALE_ENABLED       = True   # default — no extra config needed beyond OS install
+CLOUDFLARE_TUNNEL_TOKEN = os.getenv("CLOUDFLARE_TUNNEL_TOKEN")  # alternative
+
+# Local clip storage — location and size cap both user-settable via GUI
+CLIPS_DIR               = os.getenv("CLIPS_DIR", os.path.join(_BASE_DIR, "00-clips"))
+LOCAL_MAX_STORAGE_MB    = int(os.getenv("LOCAL_MAX_STORAGE_MB", "10000"))  # 10 GB default
+
+# Dropbox FIFO — user-settable via GUI
+DROPBOX_MAX_STORAGE_MB  = int(os.getenv("DROPBOX_MAX_STORAGE_MB", "1800"))
+
+# Scheduler
+SCHEDULE_ENABLED        = False
+SCHEDULE_ARM_TIME       = os.getenv("SCHEDULE_ARM_TIME",    "09:00")
+SCHEDULE_DISARM_TIME    = os.getenv("SCHEDULE_DISARM_TIME", "18:00")
+```
+
+### New files
+
+| File | Purpose |
+|------|---------|
+| `02-scripts/gui_server.py` | Flask app — routes, MJPEG stream, REST API |
+| `02-scripts/scheduler.py` | Arm/disarm timer logic |
+| `02-scripts/storage_manager.py` | Local FIFO cleanup — size-based, replaces time-based `cleanup_old_clips` |
+| `02-scripts/dropbox_manager.py` | Dropbox storage audit + FIFO cleanup |
+| `05-gui/templates/index.html` | Main dashboard |
+| `05-gui/static/` | CSS / JS |
+| `03-tests/test_scheduler.py` | Scheduler unit tests |
+| `03-tests/test_dropbox_manager.py` | FIFO logic unit tests |

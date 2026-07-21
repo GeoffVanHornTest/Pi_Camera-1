@@ -13,6 +13,7 @@ from datetime import datetime
 
 import config
 import cv2
+import numpy as np
 
 os.makedirs(config.CLIPS_DIR, exist_ok=True)
 # os.makedirs() creates the clips folder if it doesn't already exist.
@@ -21,27 +22,23 @@ os.makedirs(config.CLIPS_DIR, exist_ok=True)
 # guaranteed to exist before any file-saving functions are called.
 
 
-def get_video_path():
+def get_video_path() -> str:
     """Generate a timestamped file path for a new video clip.
 
     Returns:
-        str: Path in the form clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.
+        str: Path in the form 00-clips/motion_YYYY-MM-DD_HH-MM-SS.mp4.
     """
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    # gets current date and time and formats the the string ie:2026-06-20_21-30-00
-
     filename = f"motion_{timestamp}.mp4"
-    # sets the name of the recording file
-
     return os.path.join(config.CLIPS_DIR, filename)
 
 
-def get_snapshot_path():
+def get_snapshot_path() -> str:
     """Generate a timestamped file path for a new snapshot image.
 
     Returns:
-        str: Path in the form clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.
+        str: Path in the form 00-clips/snapshot_YYYY-MM-DD_HH-MM-SS.jpg.
     """
     # Almost identical to get_video_path() — the only differences are the
     # prefix (snapshot_ instead of motion_) and the extension
@@ -52,7 +49,7 @@ def get_snapshot_path():
     return os.path.join(config.CLIPS_DIR, filename)
 
 
-def save_snapshot(frame):
+def save_snapshot(frame: np.ndarray) -> str:
     """Save a single frame to disk as a JPEG image.
 
     Args:
@@ -62,18 +59,38 @@ def save_snapshot(frame):
         str: The path where the snapshot was saved.
     """
     path = get_snapshot_path()
-    cv2.imwrite(path, frame)
+    ok = cv2.imwrite(path, frame)
+    if not ok:
+        raise RuntimeError(f"cv2.imwrite failed — could not write snapshot to {path}")
     return path
 
 
-def cleanup_old_clips(days=7):
+_H264_ORPHAN_AGE_SEC = 300  # 5 min — long enough to never touch an in-flight conversion
+
+
+def cleanup_old_clips(days: int = 7) -> None:
     """Delete clips and snapshots older than the given number of days.
+
+    Only scans the top level of CLIPS_DIR — manually archived subdirectories
+    (e.g. daytime-2026-07-14/) are skipped and are the operator's responsibility
+    to manage. Orphaned .h264 files (evidence of a failed ffmpeg conversion) are
+    removed only when older than _H264_ORPHAN_AGE_SEC so that an in-flight
+    conversion is never unlinked mid-write (#66).
 
     Args:
         days: Files older than this many days are removed. Defaults to 7.
     """
-    cutoff = time.time() - (days * 86400)
+    now = time.time()
+    cutoff = now - (days * 86400)
     for filename in os.listdir(config.CLIPS_DIR):
         path = os.path.join(config.CLIPS_DIR, filename)
-        if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
-            os.remove(path)
+        if not os.path.isfile(path):
+            continue
+        try:
+            if filename.endswith(".h264"):
+                if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
+                    os.remove(path)
+            elif os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except FileNotFoundError:
+            pass  # another thread removed the file between the check and the delete

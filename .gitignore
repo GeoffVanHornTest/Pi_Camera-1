@@ -220,4 +220,4 @@ __marimo__/
 # PI Camera — clips output
 00-clips/*
 !00-clips/.gitkeep
-clips/
+02-scripts/service_account.json

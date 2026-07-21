@@ -1,18 +1,51 @@
 # main.py
 
-
 """Entry point for the PI Camera motion detection system.
 
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
+import signal
+import sys
+import threading
 import time
 
 import camera
 import config
+import dropbox_uploader
 import motion_detector
-import notifier
 import storage
+import telegram_notifier
+
+# --- Watchdog (issue #23) ---
+# The main loop timing checks only run when get_frame() returns. If the camera
+# stalls, MAX_RECORD_SEC can be breached by an entire frame period. The watchdog
+# is a daemon Timer that sets _split_event after MAX_RECORD_SEC regardless of
+# what get_frame() is doing. The main loop checks the event on every iteration.
+_watchdog = None
+_split_event = threading.Event()
+_currently_recording = False
+_MAX_CONSECUTIVE_ERRORS = 10
+
+
+def _arm_watchdog():
+    """Start (or restart) the MAX_RECORD_SEC timer for the current clip."""
+    global _watchdog
+    _split_event.clear()
+    if _watchdog:
+        _watchdog.cancel()
+    _watchdog = threading.Timer(config.MAX_RECORD_SEC, _split_event.set)
+    _watchdog.daemon = True
+    _watchdog.start()
+
+
+def _cancel_watchdog():
+    """Cancel the watchdog and clear the split event."""
+    global _watchdog
+    if _watchdog:
+        _watchdog.cancel()
+        _watchdog = None
+    _split_event.clear()
 
 
 def _validate_config():
@@ -20,74 +53,139 @@ def _validate_config():
     missing = [
         name
         for name, value in {
-            "GMAIL_SENDER": config.GMAIL_SENDER,
-            "GMAIL_APP_PASSWORD": config.GMAIL_PASSWORD,
-            "GMAIL_RECIPIENT": config.GMAIL_RECIPIENT,
+            "TELEGRAM_BOT_TOKEN": config.TELEGRAM_BOT_TOKEN,
+            "TELEGRAM_CHAT_ID": config.TELEGRAM_CHAT_ID,
+            "DROPBOX_APP_KEY": config.DROPBOX_APP_KEY,
+            "DROPBOX_APP_SECRET": config.DROPBOX_APP_SECRET,
+            "DROPBOX_REFRESH_TOKEN": config.DROPBOX_REFRESH_TOKEN,
         }.items()
         if not value
     ]
     if missing:
         raise RuntimeError(
-            f"Missing required .env values: {', '.join(missing)}\n"
-            "Create 02-scripts/.env with GMAIL_SENDER, GMAIL_APP_PASSWORD, GMAIL_RECIPIENT."
+            f"Missing required config: {', '.join(missing)}\n"
+            "Add TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DROPBOX_APP_KEY, "
+            "DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN to .env"
         )
+
+
+def _upload_and_notify(path):
+    """Upload a converted MP4 to Dropbox and send a Telegram link."""
+    url = dropbox_uploader.upload(path)
+    if url:
+        telegram_notifier.send_message(f"Clip ready: {url}")
+        print(f"Clip uploaded: {url}")
+    else:
+        telegram_notifier.send_message("Clip recorded but Dropbox upload failed.")
+
+
+def _finish_clip():
+    """Stop recording, reset filter state, and upload the clip once conversion completes."""
+    motion_detector.reset_motion_state()
+    _cancel_watchdog()
+    print("Recording stopped — uploading clip in background...")
+    camera.stop_recording(on_complete=_upload_and_notify)
 
 
 def main():
     """Run the camera loop — detect motion, record clips, and send alerts."""
 
+    global _currently_recording
     _validate_config()
-    # fail fast if .env credentials are missing — better than crashing on first motion event
 
     currently_recording = False
-    # tracks whether a video clip is actively being recorded
-
+    filepath = None
     last_cleanup = 0
-    # timestamp of the last disk cleanup — starts at 0 so cleanup runs on first boot
+    motion_last_seen = 0.0
+    consecutive_errors = 0
 
     print("PI Camera started. Press Ctrl+C to stop.")
 
     while True:
-        if time.time() - last_cleanup > 86400:
-            # run cleanup once every 24 hours to prevent the clips folder filling the disk
-            storage.cleanup_old_clips(days=7)
-            last_cleanup = time.time()
-        # runs forever until the user hits Ctrl+C — the camera is always watching
+        try:
+            if time.time() - last_cleanup > 86400:
+                storage.cleanup_old_clips(days=7)
+                last_cleanup = time.time()
 
-        frame = camera.get_frame()
-        # grab the latest frame from the live feed — this is a NumPy array in BGR format
+            frame = camera.get_frame()
+            motion, _ = motion_detector.detect(frame)
+            now = time.time()
 
-        motion, _ = motion_detector.detect(frame)
-        # analyse the frame for motion — returns (bool, frame). We discard the frame with _
-        # because we already have it, and we don't need the annotated version in main
+            consecutive_errors = 0
 
-        if motion and not currently_recording and motion_detector.new_event_allowed():
-            # start a new clip only when: motion is present, not already recording,
-            # and enough time has passed since the last event (cooldown gate).
-            # detect() is the raw per-frame signal — new_event_allowed() is the gate.
-            filepath = storage.get_video_path()
-            camera.start_recording(filepath)
-            snapshot = storage.save_snapshot(frame)
-            notifier.send_alert(snapshot)
-            currently_recording = True
-            print(f"Motion detected — recording to {filepath}")
+            if motion:
+                motion_last_seen = now
 
-        if not motion and currently_recording:
-            time.sleep(config.POST_MOTION_BUFFER_SEC)
-            # keep recording for a few seconds after motion stops — without this the clip
-            # would cut off the moment the subject leaves frame
-            camera.stop_recording()
-            currently_recording = False
-            print("Motion stopped — recording saved.")
+            if motion and not currently_recording and motion_detector.new_event_allowed():
+                filepath = storage.get_video_path()
+                camera.start_recording(filepath)
+                _arm_watchdog()
+                currently_recording = True
+                _currently_recording = True
+                motion_last_seen = now
+                print(f"Motion detected — recording to {filepath}")
+                try:
+                    snapshot = storage.save_snapshot(frame)
+                    threading.Thread(
+                        target=telegram_notifier.send_photo,
+                        args=(snapshot,),
+                        kwargs={"caption": "Motion detected!"},
+                        daemon=True,
+                    ).start()
+                except Exception as e:
+                    print(f"[main] snapshot failed — recording continues without alert: {e}")
+
+            if currently_recording:
+                time_since_motion = now - motion_last_seen
+
+                if _split_event.is_set():
+                    # Watchdog fired — MAX_RECORD_SEC elapsed on a background timer
+                    # so this fires even if get_frame() was slow (#23).
+                    print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
+                    filepath = storage.get_video_path()
+
+                    camera.split_recording(filepath, on_complete=_upload_and_notify)
+                    motion_detector.reset_motion_state()
+                    motion_last_seen = now
+                    _arm_watchdog()
+
+                elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
+                    filepath = None
+                    currently_recording = False
+                    _currently_recording = False
+                    _finish_clip()
+
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as e:
+            consecutive_errors += 1
+            print(f"[main] frame error ({consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}): {e}")
+            if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                raise RuntimeError(
+                    f"[main] {_MAX_CONSECUTIVE_ERRORS} consecutive errors — "
+                    "exiting so systemd can restart and re-initialise hardware"
+                ) from e
+            time.sleep(1)
+
+
+def _shutdown():
+    """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
+    print("\nStopping PI Camera...")
+    if _currently_recording:
+        print("Recording in progress — finalising clip before exit...")
+        _finish_clip()
+    else:
+        _cancel_watchdog()
+    camera.close()
+    print("Camera released. Goodbye.")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
-    # only run when this file is executed directly (not when imported by another module)
+    signal.signal(signal.SIGTERM, lambda *_: _shutdown())
     try:
         main()
     except KeyboardInterrupt:
-        # user pressed Ctrl+C — shut down cleanly instead of dying mid-frame
-        print("\nStopping PI Camera...")
-        camera.close()
-        # release the camera hardware so it's not left in a locked state
-        print("Camera released. Goodbye.")
+        _shutdown()
+    except Exception:
+        _shutdown()
