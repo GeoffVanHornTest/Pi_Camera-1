@@ -21,11 +21,32 @@ All notable changes to PI Camera are documented here.
 - **`pyproject.toml` version and description stale (#58)** — version bumped to 0.4.2; description updated to reference Telegram + Dropbox
 - **`clip-timing.md` stale content** — `MIN_RECORD_SEC` section removed (constant deleted in #43), `PRE_ROLL_SEC` updated 5→8, watchdog narrative corrected (~140s bug note replaced with accurate ~128s), ASCII timing diagram updated
 
+### Fixed (cont.)
+
+- **Dropbox-API-Arg built with f-string (#76)** — replaced with `json.dumps()`; filenames containing `"` or `\` no longer produce invalid JSON in the upload header
+- **Test frame shape mismatch (#77)** — `test_motion_detector.py` now derives frame dimensions from `config.RESOLUTION` (720p) instead of a hardcoded 1080p constant; tests match the production resolution
+- **Cooldown slot consumed when snapshot raises (#78)** — `_currently_recording = True` is now set before `save_snapshot()` so a snapshot failure does not silently consume the `new_event_allowed()` cooldown slot while leaving no clip
+- **`on_complete` identity not verified in test (#79)** — `test_finish_clip_calls_stop_recording` now asserts `on_complete is main._upload_and_notify` (identity) instead of `callable(on_complete)` (any callable)
+- **Active recording lost on shutdown (#80)** — added module-level `_currently_recording` flag; `_shutdown()` calls `_finish_clip()` before `camera.close()` when a clip is in progress, ensuring Ctrl-C and SIGTERM always finalise the recording
+- **`list.pop(0)` in centroid history (#81)** — replaced with `collections.deque(maxlen=CENTROID_HISTORY_LEN)`; O(1) rotation, no manual length guard
+- **TOCTOU race in `cleanup_old_clips()` (#82)** — `os.remove()` now wrapped in `try/except FileNotFoundError`; a concurrent removal between the `isfile()` check and the `remove()` call no longer raises
+- **Invalid package name in `pyproject.toml` (#83)** — `[build-system]` / `hatchling` / `packages = ["02-scripts"]` block removed; replaced with `[tool.uv] package = false` (application project, not a library)
+- **Dropbox token refetched on every upload (#84)** — `_get_access_token()` now caches the token with a 4-hour TTL and a 60s safety margin; subsequent uploads within the window reuse the cached token without a network round-trip
+- **Shared MOG2 state between tests (#85)** — `test_motion_detector.py` gains an autouse fixture `fresh_motion_detector` that replaces `_bg_subtractor` with a fresh MOG2 instance before each test; ordering-dependent failures eliminated
+- **`_log_clip_quality` labels 0% as 'gain' (#86)** — ternary corrected to `"drop" if drop_pct > 0 else ("gain" if drop_pct < 0 else "ok")`
+- **Dropbox 150MB limit not enforced (#87)** — `upload()` checks `os.path.getsize()` before calling the API; files over `_UPLOAD_MAX_BYTES` return `None` immediately with a clear log message
+- **griffe warnings under `mkdocs --strict` (#89)** — type annotations added to all public functions in `telegram_notifier.py`, `dropbox_uploader.py`, `motion_detector.py`, and `storage.py`; `mkdocs build --strict` now exits clean
+
 ### Added
 
 - **Watchdog split test (#65)** — `test_watchdog_split_calls_split_recording` verifies `camera.split_recording` is called with `on_complete=main._upload_and_notify` when `_split_event` fires
 - **`_upload_and_notify` tests (#74)** — two new tests verify the Dropbox link is sent on success and the fallback message is sent on upload failure
 - **Token-redaction tests (#75)** — three new tests: `_safe_err` replaces the token, `_safe_err` survives an empty token, and `send_photo` exception does not print the token to stdout
+- **Shutdown / recording-continuity tests (#78, #79, #80)** — `test_shutdown_calls_finish_clip_when_recording`, `test_shutdown_skips_finish_clip_when_not_recording`, `test_recording_continues_when_snapshot_raises`
+- **Token-cache tests (#84)** — `test_get_access_token_caches_token`, `test_get_access_token_refreshes_when_expired`, `test_upload_returns_none_for_oversized_file`, `test_upload_api_arg_header_is_valid_json`
+- **TOCTOU test (#82)** — `test_cleanup_does_not_raise_if_file_deleted_concurrently`
+- **`verify_shutdown.py` (#80)** — hardware integration test; starts recording directly, calls `_finish_clip()`, waits for the MP4, and validates it with `ffprobe`. Hardware-verified: 6.2s MP4, 1945 KB
+- **Thread map** — swimlane sequence diagram added to MkDocs docs (`thread-map.html`) showing all four concurrent threads and their interactions across a full recording lifecycle
 
 ---
 

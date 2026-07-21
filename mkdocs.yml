@@ -12,6 +12,7 @@ nav:
   - Clip Timing & Ring Buffer: clip-timing.md
   - API Reference: api.md
   - Analysis Scripts: analysis.md
+  - Thread Map: thread-map.html
 
 plugins:
   - search

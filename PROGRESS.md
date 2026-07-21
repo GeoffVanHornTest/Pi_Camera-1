@@ -5,14 +5,14 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-19)
+## Current state (2026-07-20)
 
 **Branch:** `main` — v0.4.0 released. Post-release fixes in progress (unreleased).
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 63 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
-`dropbox_uploader`. `camera.py` and `main.py` excluded (hardware-dependent).
+**Tests:** 71 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+`dropbox_uploader`, `main`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
 alignment). Reduced from 1080p/4Mbps to address frame-drop under concurrent load (#53).
@@ -26,21 +26,8 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 | # | Type | Title |
 |---|------|-------|
-| 76 | bug | Dropbox-API-Arg header built with f-string — breaks on special chars in path |
-| 77 | bug | motion_detector test frames are 1080p but production runs at 720p |
-| 78 | bug | Motion cooldown slot consumed when save_snapshot() raises |
-| 79 | bug | on_complete callback in test_finish_clip verified as 'any callable' not by identity |
-| 80 | bug | Active recording not finalized when _shutdown() called mid-clip |
-| 60 | bug | Day/night brightness uses Blue channel only (cv2.mean index 0 on BGR frame) — hardware |
-| 85 | bug | Shared MOG2 background model between tests causes fragile ordering |
 | 88 | refactor | camera.py acquires hardware at import time — should be deferred to initialize() |
-| 81 | maintenance | list.pop(0) in centroid history should be collections.deque |
-| 82 | maintenance | TOCTOU race in cleanup_old_clips() — isfile() then remove() |
-| 83 | maintenance | '02-scripts' is not a valid Python package name in pyproject.toml |
-| 84 | maintenance | Dropbox access token refetched on every upload — not cached |
-| 86 | maintenance | camera.py _log_clip_quality labels drop_pct==0 as 'gain' |
-| 87 | maintenance | Dropbox /files/upload 150MB limit undocumented — silent failure risk |
-| 89 | maintenance | mkdocs build --strict emits 14 griffe warnings about missing docstrings |
+| 60 | bug | Day/night brightness uses Blue channel only (cv2.mean index 0 on BGR frame) — hardware |
 | 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated — hardware |
 | 20 | enhancement | Improve day/night detection + AI snapshot validation |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
@@ -186,7 +173,7 @@ PI_Camera/
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 8-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (60 passing)
+├── 03-tests/                # pytest unit tests (71 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)
