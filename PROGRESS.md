@@ -11,7 +11,7 @@ Use it to resume work on a new machine or after a long break.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 71 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+**Tests:** 76 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`, `main`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
@@ -173,7 +173,7 @@ PI_Camera/
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 8-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (71 passing)
+├── 03-tests/                # pytest unit tests (76 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)

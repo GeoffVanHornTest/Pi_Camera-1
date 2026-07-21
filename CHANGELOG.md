@@ -27,7 +27,7 @@ All notable changes to PI Camera are documented here.
 - **Test frame shape mismatch (#77)** — `test_motion_detector.py` now derives frame dimensions from `config.RESOLUTION` (720p) instead of a hardcoded 1080p constant; tests match the production resolution
 - **Cooldown slot consumed when snapshot raises (#78)** — `_currently_recording = True` is now set before `save_snapshot()` so a snapshot failure does not silently consume the `new_event_allowed()` cooldown slot while leaving no clip
 - **`on_complete` identity not verified in test (#79)** — `test_finish_clip_calls_stop_recording` now asserts `on_complete is main._upload_and_notify` (identity) instead of `callable(on_complete)` (any callable)
-- **Active recording lost on shutdown (#80)** — added module-level `_currently_recording` flag; `_shutdown()` calls `_finish_clip()` before `camera.close()` when a clip is in progress, ensuring Ctrl-C and SIGTERM always finalise the recording
+- **Active recording lost on shutdown (#80)** — added module-level `_currently_recording` flag; `_shutdown()` calls `_finish_clip()` before `camera.close()` when a clip is in progress. Follow-up fix: ffmpeg conversion threads changed from `daemon=True` to `daemon=False` so Python's interpreter shutdown waits for `on_complete()` to fire — previously `sys.exit(0)` killed the daemon thread before `_upload_and_notify` could run, silently dropping the upload and Telegram notification on every graceful shutdown with an active clip
 - **`list.pop(0)` in centroid history (#81)** — replaced with `collections.deque(maxlen=CENTROID_HISTORY_LEN)`; O(1) rotation, no manual length guard
 - **TOCTOU race in `cleanup_old_clips()` (#82)** — `os.remove()` now wrapped in `try/except FileNotFoundError`; a concurrent removal between the `isfile()` check and the `remove()` call no longer raises
 - **Invalid package name in `pyproject.toml` (#83)** — `[build-system]` / `hatchling` / `packages = ["02-scripts"]` block removed; replaced with `[tool.uv] package = false` (application project, not a library)
@@ -36,6 +36,9 @@ All notable changes to PI Camera are documented here.
 - **`_log_clip_quality` labels 0% as 'gain' (#86)** — ternary corrected to `"drop" if drop_pct > 0 else ("gain" if drop_pct < 0 else "ok")`
 - **Dropbox 150MB limit not enforced (#87)** — `upload()` checks `os.path.getsize()` before calling the API; files over `_UPLOAD_MAX_BYTES` return `None` immediately with a clear log message
 - **griffe warnings under `mkdocs --strict` (#89)** — type annotations added to all public functions in `telegram_notifier.py`, `dropbox_uploader.py`, `motion_detector.py`, and `storage.py`; `mkdocs build --strict` now exits clean
+- **RuntimeError from consecutive-error backoff skips `_shutdown()` (#90)** — the `__main__` guard now catches all exceptions (not just `KeyboardInterrupt`), routing fatal errors through `_shutdown()` for clip finalisation and `camera.close()`; `_MAX_CONSECUTIVE_ERRORS` hoisted to module level for testability
+- **Dropbox exceptions expose credentials (#91)** — `_safe_err()` added to `dropbox_uploader.py`; redacts `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN`, and the cached access token from exception strings, consistent with the pattern established for Telegram in #75
+- **Stale "Alert emails" phrase in `clip-timing.md`** — corrected to "Telegram alerts"; Gmail was removed in v0.4.0
 
 ### Added
 
@@ -47,6 +50,8 @@ All notable changes to PI Camera are documented here.
 - **TOCTOU test (#82)** — `test_cleanup_does_not_raise_if_file_deleted_concurrently`
 - **`verify_shutdown.py` (#80)** — hardware integration test; starts recording directly, calls `_finish_clip()`, waits for the MP4, and validates it with `ffprobe`. Hardware-verified: 6.2s MP4, 1945 KB
 - **Thread map** — swimlane sequence diagram added to MkDocs docs (`thread-map.html`) showing all four concurrent threads and their interactions across a full recording lifecycle
+- **Consecutive-error tests (#90)** — `test_main_raises_after_max_consecutive_errors` and `test_consecutive_error_counter_resets_on_success` cover the escalation path and counter-reset behaviour
+- **Dropbox credential-redaction tests (#91)** — `test_safe_err_redacts_app_key`, `test_safe_err_redacts_cached_token`, `test_upload_exception_does_not_log_credentials`
 
 ---
 
