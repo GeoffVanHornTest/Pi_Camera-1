@@ -23,6 +23,9 @@ All notable changes to PI Camera are documented here.
 
 ### Fixed (cont.)
 
+- **Day/night detection used Blue channel instead of grayscale (#60)** — `cv2.mean(frame)[0]` returned the Blue channel mean on a BGR frame, not luminance. IR illuminators inflate the Blue channel 5–7× above true brightness, so the system was classifying IR night clips as daytime and applying the wrong threshold. Fixed to `cv2.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]`. Field analysis showed 13/19 overnight clips (68%) had the wrong day/night threshold as a result.
+- **`MOTION_THRESHOLD_NIGHT` uncalibrated — real motion suppressed (#19)** — threshold was set to 25 000 px² without field data. Overnight dataset analysis (19 clips, midnight–9:45am) showed 50s+ detection gaps on confirmed motion events at T=25 000. Recalibrated to 7 500 to match `MOTION_THRESHOLD_DAY`; field-verified on the same dataset.
+- **Stale `MIN_RECORD_SEC` reference in `analyze_clips.py`** — constant was removed in #43; script crashed at the summary print. Fixed to `MAX_RECORD_SEC`.
 - **Dropbox-API-Arg built with f-string (#76)** — replaced with `json.dumps()`; filenames containing `"` or `\` no longer produce invalid JSON in the upload header
 - **Test frame shape mismatch (#77)** — `test_motion_detector.py` now derives frame dimensions from `config.RESOLUTION` (720p) instead of a hardcoded 1080p constant; tests match the production resolution
 - **Cooldown slot consumed when snapshot raises (#78)** — `_currently_recording = True` is now set before `save_snapshot()` so a snapshot failure does not silently consume the `new_event_allowed()` cooldown slot while leaving no clip
@@ -42,6 +45,9 @@ All notable changes to PI Camera are documented here.
 
 ### Added
 
+- **Persistent event log (#93)** — `event_log.py` appends one timestamped line per event to `05-logs/pi_camera.log`. Covers `STARTUP`, `SHUTDOWN`, `MOTION`, `SPLIT`, `STOP`, `ERROR`, `FATAL`, `SNAPSHOT_FAIL`, `TELEGRAM_OK/FAIL/SKIP`, `UPLOAD_OK/FAIL/SKIP`. Rotating handler: 1 MB per file, 5 backups (~5 MB max). Credentials redacted via each module's existing `_safe_err()` before any string reaches the log. Useful for post-hoc troubleshooting when no one is present to watch the terminal.
+- **`analyze_brightness_channels.py`** — diagnostic script that samples the first 10 frames of each clip and compares Blue-channel mean, ITU-R BT.601 luminance, and OpenCV grayscale. Reports whether each clip had the correct day/night threshold applied (used to quantify #60 impact).
+- **Event log tests** — `test_event_log.py`: 9 tests covering file creation, format, multi-line append, event type padding, and `config.LOG_FILE` location.
 - **Watchdog split test (#65)** — `test_watchdog_split_calls_split_recording` verifies `camera.split_recording` is called with `on_complete=main._upload_and_notify` when `_split_event` fires
 - **`_upload_and_notify` tests (#74)** — two new tests verify the Dropbox link is sent on success and the fallback message is sent on upload failure
 - **Token-redaction tests (#75)** — three new tests: `_safe_err` replaces the token, `_safe_err` survives an empty token, and `send_photo` exception does not print the token to stdout

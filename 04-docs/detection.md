@@ -22,17 +22,19 @@ Shadow detection is disabled — on an IR night-vision camera the shadow respons
 The area threshold applied to blobs is not fixed — it switches based on scene brightness:
 
 ```python
-brightness = cv2.mean(frame)[0]
+brightness = cv2.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
 threshold = MOTION_THRESHOLD_DAY if brightness > BRIGHTNESS_THRESHOLD else MOTION_THRESHOLD_NIGHT
 ```
 
+Brightness is derived from a grayscale conversion of the BGR frame. Using a raw BGR channel (e.g. `cv2.mean(frame)[0]`, which returns the Blue channel) gives misleading results on IR night-vision cameras: the IR illuminator inflates the Blue channel 5–7× above true luminance, causing night-mode clips to be classified as daytime.
+
 | Config key | Default | Purpose |
 |---|---|---|
-| `BRIGHTNESS_THRESHOLD` | 60 | Mean pixel value (0–255) that separates day from night mode |
+| `BRIGHTNESS_THRESHOLD` | 60 | Mean grayscale pixel value (0–255) that separates day from night mode |
 | `MOTION_THRESHOLD_DAY` | 7 500 px² | Minimum contour area in good light |
-| `MOTION_THRESHOLD_NIGHT` | 25 000 px² | Minimum contour area in IR/dark mode |
+| `MOTION_THRESHOLD_NIGHT` | 7 500 px² | Minimum contour area in IR/dark mode |
 
-The night threshold is significantly higher because IR LED flicker and increased sensor gain at low light produce a noisier foreground mask. Raising the threshold stops the detector treating that noise as motion.
+Both thresholds are currently equal, calibrated from an overnight field dataset (midnight–9:45am, 19 clips). The separate constants are retained so they can be tuned independently as more night data is collected.
 
 ---
 

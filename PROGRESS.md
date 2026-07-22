@@ -5,14 +5,14 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-20)
+## Current state (2026-07-21)
 
-**Branch:** `main` — v0.4.0 released. Post-release fixes in progress (unreleased).
+**Branch:** `feature/night-detection` — fixes #60 and #19 from overnight field dataset; adds persistent event log (#93). PR into `dev` pending.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 76 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
-`dropbox_uploader`, `main`. `camera.py` excluded (hardware-dependent).
+**Tests:** 85 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+`dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
 alignment). Reduced from 1080p/4Mbps to address frame-drop under concurrent load (#53).
@@ -27,8 +27,6 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 | # | Type | Title |
 |---|------|-------|
 | 88 | refactor | camera.py acquires hardware at import time — should be deferred to initialize() |
-| 60 | bug | Day/night brightness uses Blue channel only (cv2.mean index 0 on BGR frame) — hardware |
-| 19 | bug | IR false triggers — MOTION_THRESHOLD_NIGHT uncalibrated — hardware |
 | 20 | enhancement | Improve day/night detection + AI snapshot validation |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |
@@ -41,8 +39,9 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 | 1 | Original | Day | Done — 238 clips, 2026-07-14 |
 | 2 | New (repositioned) | Day | Done — 18 clips, 2026-07-15 |
 | 3 | New | Night | Done — 1 clip (startup trigger only), 2026-07-16 |
-| 4 | Original | Night | Planned — facing open window, car lights expected |
-| 5 | TBD | Day (supervised) | Planned — operator present, labelled in real time |
+| 4 | New | Overnight (midnight–9:45am) | Done — 19 clips, 2026-07-21; used to diagnose #60 and calibrate #19 |
+| 5 | Original | Night | Planned — facing open window, car lights expected |
+| 6 | TBD | Day (supervised) | Planned — operator present, labelled in real time |
 
 ---
 
@@ -170,13 +169,15 @@ PI_Camera/
 │   ├── storage.py           # Timestamped filenames, cleanup
 │   ├── telegram_notifier.py # Telegram Bot API — send_photo(), send_message()
 │   ├── dropbox_uploader.py  # Dropbox OAuth + upload, returns shareable URL
+│   ├── event_log.py         # Persistent event log — motion, Telegram, Dropbox outcomes
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
-│   └── analyze_*.py         # 8-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (76 passing)
+│   └── analyze_*.py         # 9-script false trigger diagnostic suite
+├── 03-tests/                # pytest unit tests (85 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)
+├── 05-logs/                 # Persistent event log output — pi_camera.log (gitignored)
 ├── 01-reqs/requirements.txt # pip fallback (pyproject.toml is authoritative)
 ├── pi-camera.service        # systemd unit (production values — see note in file)
 ├── pyproject.toml           # Project metadata and dependencies
