@@ -95,6 +95,11 @@ MAX_RECORD_SEC = 120
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
+# --- Logging ---
+# LOG_FILE is the persistent event log path. Rotated at 1 MB; 5 backups kept.
+# The 05-logs/ directory is created automatically on first write.
+LOG_FILE = os.path.join(_BASE_DIR, "05-logs", "pi_camera.log")
+
 # --- Notifications ---
 # NOTIFICATION_COOLDOWN_SEC is the minimum gap between Telegram alerts.
 # This is separate from MOTION_COOLDOWN_SEC — motion can be detected

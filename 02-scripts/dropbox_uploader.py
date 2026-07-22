@@ -9,6 +9,7 @@ import os
 import time
 
 import config
+import event_log
 import requests
 
 _TOKEN_URL = "https://api.dropbox.com/oauth2/token"
@@ -68,11 +69,12 @@ def upload(filepath: str) -> str | None:
     try:
         file_size = os.path.getsize(filepath)
         if file_size > _UPLOAD_MAX_BYTES:
-            print(
-                f"[dropbox] {os.path.basename(filepath)} is {file_size / 1024 / 1024:.1f} MB "
-                f"— exceeds the {_UPLOAD_MAX_BYTES // 1024 // 1024} MB /files/upload limit. "
-                "Upload skipped. Use upload sessions for large files."
+            msg = (
+                f"{os.path.basename(filepath)} is {file_size / 1024 / 1024:.1f} MB "
+                f"— exceeds {_UPLOAD_MAX_BYTES // 1024 // 1024} MB limit"
             )
+            print(f"[dropbox] {msg}. Upload skipped. Use upload sessions for large files.")
+            event_log.log("UPLOAD_SKIP", msg)
             return None
 
         token = _get_access_token()
@@ -102,8 +104,11 @@ def upload(filepath: str) -> str | None:
             timeout=15,
         )
         share_response.raise_for_status()
-        return share_response.json().get("url")
+        url = share_response.json().get("url")
+        event_log.log("UPLOAD_OK", url or "(no URL in response)")
+        return url
 
     except Exception as e:
         print(f"[dropbox] upload failed: {_safe_err(e)}")
+        event_log.log("UPLOAD_FAIL", f"{os.path.basename(filepath)}: {_safe_err(e)}")
         return None

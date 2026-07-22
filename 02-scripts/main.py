@@ -13,6 +13,7 @@ import time
 import camera
 import config
 import dropbox_uploader
+import event_log
 import motion_detector
 import storage
 import telegram_notifier
@@ -100,6 +101,7 @@ def main():
     consecutive_errors = 0
 
     print("PI Camera started. Press Ctrl+C to stop.")
+    event_log.log("STARTUP", "PI Camera started")
 
     while True:
         try:
@@ -124,6 +126,7 @@ def main():
                 _currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
+                event_log.log("MOTION", f"Recording started → {filepath}")
                 try:
                     snapshot = storage.save_snapshot(frame)
                     threading.Thread(
@@ -134,6 +137,7 @@ def main():
                     ).start()
                 except Exception as e:
                     print(f"[main] snapshot failed — recording continues without alert: {e}")
+                    event_log.log("SNAPSHOT_FAIL", str(e))
 
             if currently_recording:
                 time_since_motion = now - motion_last_seen
@@ -143,13 +147,14 @@ def main():
                     # so this fires even if get_frame() was slow (#23).
                     print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
                     filepath = storage.get_video_path()
-
+                    event_log.log("SPLIT", f"Clip split → {filepath}")
                     camera.split_recording(filepath, on_complete=_upload_and_notify)
                     motion_detector.reset_motion_state()
                     motion_last_seen = now
                     _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
+                    event_log.log("STOP", "Recording stopped")
                     filepath = None
                     currently_recording = False
                     _currently_recording = False
@@ -160,7 +165,15 @@ def main():
         except Exception as e:
             consecutive_errors += 1
             print(f"[main] frame error ({consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}): {e}")
+            event_log.log(
+                "ERROR",
+                f"frame error {consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}: {e}",
+            )
             if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                event_log.log(
+                    "FATAL",
+                    f"{_MAX_CONSECUTIVE_ERRORS} consecutive errors — triggering restart",
+                )
                 raise RuntimeError(
                     f"[main] {_MAX_CONSECUTIVE_ERRORS} consecutive errors — "
                     "exiting so systemd can restart and re-initialise hardware"
@@ -171,6 +184,7 @@ def main():
 def _shutdown():
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     print("\nStopping PI Camera...")
+    event_log.log("SHUTDOWN", "Clean shutdown")
     if _currently_recording:
         print("Recording in progress — finalising clip before exit...")
         _finish_clip()

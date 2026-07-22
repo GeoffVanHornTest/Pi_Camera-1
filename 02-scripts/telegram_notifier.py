@@ -8,6 +8,7 @@ re-triggers don't flood the chat. send_message() (clip-ready links) always sends
 import time
 
 import config
+import event_log
 import requests
 
 _last_photo_sent = 0.0
@@ -33,6 +34,7 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
     global _last_photo_sent
     if time.time() - _last_photo_sent < config.NOTIFICATION_COOLDOWN_SEC:
         print("[telegram] send_photo suppressed — within cooldown window")
+        event_log.log("TELEGRAM_SKIP", "photo suppressed — within cooldown")
         return
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
     try:
@@ -46,10 +48,14 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
         body = resp.json()
         if body.get("ok"):
             _last_photo_sent = time.time()
+            event_log.log("TELEGRAM_OK", f"Photo sent: {image_path}")
         else:
-            print(f"[telegram] send_photo API error: {body.get('description', body)}")
+            desc = body.get("description", body)
+            print(f"[telegram] send_photo API error: {desc}")
+            event_log.log("TELEGRAM_FAIL", f"send_photo API error: {desc}")
     except Exception as e:
         print(f"[telegram] send_photo failed: {_safe_err(e)}")
+        event_log.log("TELEGRAM_FAIL", f"send_photo error: {_safe_err(e)}")
 
 
 def send_message(text: str) -> None:
@@ -66,7 +72,12 @@ def send_message(text: str) -> None:
             timeout=15,
         )
         body = resp.json()
-        if not body.get("ok"):
-            print(f"[telegram] send_message API error: {body.get('description', body)}")
+        if body.get("ok"):
+            event_log.log("TELEGRAM_OK", f"Message sent: {text}")
+        else:
+            desc = body.get("description", body)
+            print(f"[telegram] send_message API error: {desc}")
+            event_log.log("TELEGRAM_FAIL", f"send_message API error: {desc}")
     except Exception as e:
         print(f"[telegram] send_message failed: {_safe_err(e)}")
+        event_log.log("TELEGRAM_FAIL", f"send_message error: {_safe_err(e)}")
