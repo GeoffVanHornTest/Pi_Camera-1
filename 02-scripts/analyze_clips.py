@@ -118,7 +118,7 @@ def main():
     )
     print(
         f"POST_MOTION_BUFFER_SEC={config.POST_MOTION_BUFFER_SEC},"
-        f" MIN_RECORD_SEC={config.MIN_RECORD_SEC}"
+        f" MAX_RECORD_SEC={config.MAX_RECORD_SEC}"
     )
 
     # write CSV

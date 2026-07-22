@@ -55,7 +55,7 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     fg_mask = _bg_subtractor.apply(frame)
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    brightness = cv2.mean(frame)[0]
+    brightness = cv2.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
     threshold = (
         config.MOTION_THRESHOLD_DAY
         if brightness > config.BRIGHTNESS_THRESHOLD

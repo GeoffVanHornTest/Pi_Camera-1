@@ -37,12 +37,13 @@ FPS = 30
 # this — a second trigger arriving within the window is ignored so one long
 # motion event doesn't spawn back-to-back clips. Distinct from
 # POST_MOTION_BUFFER_SEC, which controls when the *current* clip ends.
-# MOTION_THRESHOLD_DAY is used when average frame brightness is above BRIGHTNESS_THRESHOLD.
-# MOTION_THRESHOLD_NIGHT is used in IR/dark mode — noise floor is significantly higher
-# due to IR LED flicker and increased sensor gain at low light.
-# BRIGHTNESS_THRESHOLD is the mean pixel value (0-255) that separates day from night mode.
+# MOTION_THRESHOLD_DAY is used when grayscale frame brightness is above BRIGHTNESS_THRESHOLD.
+# MOTION_THRESHOLD_NIGHT is used in IR/dark mode. Previously 25000 — lowered to 7500 after
+# field analysis (#19) showed 25000 suppressed real motion; Blue-channel inflation (#60) was
+# also masking night mode entirely. Brightness now derived from grayscale, not Blue channel.
+# BRIGHTNESS_THRESHOLD is the mean grayscale pixel value (0-255) separating day from night.
 MOTION_THRESHOLD_DAY = 7500
-MOTION_THRESHOLD_NIGHT = 25000
+MOTION_THRESHOLD_NIGHT = 7500
 BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
 
