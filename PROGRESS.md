@@ -11,7 +11,7 @@ Use it to resume work on a new machine or after a long break.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 85 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+**Tests:** 87 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe

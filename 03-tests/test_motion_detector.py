@@ -153,3 +153,70 @@ def test_new_event_allowed_fires_after_cooldown(monkeypatch):
         motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1
     )
     assert motion_detector.new_event_allowed() is True
+
+
+# --- Day/night brightness threshold tests (regression for #60) ---
+
+
+def colored_frame(bgr_value):
+    """Solid frame filled with a specific BGR color."""
+    return np.full(_SHAPE, bgr_value, dtype=np.uint8)
+
+
+def _warm_up_on(base_frame, n=30):
+    """Feed n copies of base_frame to settle the MOG2 background model."""
+    for _ in range(n):
+        motion_detector.detect(base_frame)
+    motion_detector.reset_motion_state()
+
+
+def frame_with_blob(bg_bgr, blob_bgr, blob_size=200):
+    """Frame filled with bg_bgr containing a blob_size×blob_size region of blob_bgr."""
+    frame = np.full(_SHAPE, bg_bgr, dtype=np.uint8)
+    frame[100:100 + blob_size, 100:100 + blob_size] = blob_bgr
+    return frame
+
+
+def test_ir_like_frame_uses_night_threshold(monkeypatch):
+    """High-Blue / low-grayscale frame must select MOTION_THRESHOLD_NIGHT.
+
+    Regression for #60: cv2.mean(frame)[0] returns the Blue channel mean.
+    On an IR-illuminated frame Blue≈120 > BRIGHTNESS_THRESHOLD(60), so the
+    old code selected DAY — causing false detections in the dark.
+    After the fix, grayscale≈14 correctly selects NIGHT.
+
+    With MOTION_THRESHOLD_DAY=1 and MOTION_THRESHOLD_NIGHT=100_000:
+    - Correct code:   grayscale≈24 < 60 → NIGHT=100k → blob(40k) < 100k → False
+    - Old buggy code: Blue≈126     > 60 → DAY=1      → blob(40k) > 1    → True
+    """
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_DAY", 1)
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_NIGHT", 100_000)
+
+    ir_bg = [120, 0, 0]  # Blue=120 > 60; grayscale ≈ 14 < 60
+    _warm_up_on(colored_frame(ir_bg))
+
+    motion, _ = motion_detector.detect(frame_with_blob(ir_bg, [255, 255, 255]))
+    assert motion is False
+
+
+def test_bright_non_blue_frame_uses_day_threshold(monkeypatch):
+    """Low-Blue / high-grayscale frame must select MOTION_THRESHOLD_DAY.
+
+    Regression for #60: cv2.mean(frame)[0] returns Blue≈0 for a green frame,
+    selecting NIGHT — causing missed detections in bright non-blue light.
+    After the fix, grayscale≈117 correctly selects DAY.
+
+    With MOTION_THRESHOLD_DAY=1 and MOTION_THRESHOLD_NIGHT=100_000:
+    - Correct code:   grayscale≈123 > 60 → DAY=1      → blob(40k) > 1    → True
+    - Old buggy code: Blue≈11       < 60 → NIGHT=100k → blob(40k) < 100k → False
+    """
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_DAY", 1)
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_NIGHT", 100_000)
+
+    green_bg = [0, 200, 0]  # Blue=0 < 60; grayscale ≈ 117 > 60
+    _warm_up_on(colored_frame(green_bg))
+
+    motion_frame = frame_with_blob(green_bg, [255, 255, 255])
+    for _ in range(config.MIN_CONSECUTIVE_FRAMES):
+        motion, _ = motion_detector.detect(motion_frame)
+    assert motion is True

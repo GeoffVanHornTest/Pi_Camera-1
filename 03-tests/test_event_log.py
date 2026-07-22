@@ -10,13 +10,15 @@ import event_log
 
 @pytest.fixture(autouse=True)
 def tmp_log(tmp_path):
-    """Redirect the event logger to a temp file for every test."""
+    """Give each test its own fresh log file.
+
+    Session-level redirection away from the real log is handled by
+    conftest.py; this fixture just points the logger at a per-test
+    temp file so tests don't share state with each other.
+    """
     log_file = str(tmp_path / "test_events.log")
     event_log._init(log_file)
     yield log_file
-    # Restore to the real log file after each test so other test modules are unaffected
-    import config
-    event_log._init(config.LOG_FILE)
 
 
 def _read_log(log_file):
