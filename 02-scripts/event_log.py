@@ -47,7 +47,12 @@ def _init(log_file: str) -> None:
     _logger.addHandler(handler)
 
 
-_init(config.LOG_FILE)
+try:
+    _init(config.LOG_FILE)
+except OSError:
+    # Log directory unavailable (e.g. read-only filesystem on SD card failure).
+    # System continues running; event log entries are silently dropped.
+    pass
 
 
 def log(event_type: str, detail: str = "") -> None:

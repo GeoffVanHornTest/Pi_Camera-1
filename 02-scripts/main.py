@@ -181,10 +181,10 @@ def main():
             time.sleep(1)
 
 
-def _shutdown():
+def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     print("\nStopping PI Camera...")
-    event_log.log("SHUTDOWN", "Clean shutdown")
+    event_log.log("SHUTDOWN", reason)
     if _currently_recording:
         print("Recording in progress — finalising clip before exit...")
         _finish_clip()
@@ -196,10 +196,10 @@ def _shutdown():
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, lambda *_: _shutdown())
+    signal.signal(signal.SIGTERM, lambda *_: _shutdown("SIGTERM received"))
     try:
         main()
     except KeyboardInterrupt:
-        _shutdown()
+        _shutdown("KeyboardInterrupt")
     except Exception:
-        _shutdown()
+        _shutdown("Fatal error — restarting")
