@@ -4,26 +4,47 @@ from collections import deque
 
 import config
 import cv2
+import event_log
 import numpy as np
 
 _bg_subtractor = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
-_last_motion = 0
+_last_motion = 0.0
 
 # Filter state — reset between motion events via reset_motion_state().
 _consecutive_motion_frames = 0  # count of back-to-back frames that passed all blob checks
 _centroid_history = deque(maxlen=config.CENTROID_HISTORY_LEN)  # (cx, cy) ring buffer
 
+# Scene-change gate state — rolling brightness window + suppress timer.
+_brightness_history: deque = deque(maxlen=config.SCENE_CHANGE_WINDOW_FRAMES)
+_scene_suppress_until: float = 0.0
 
-def reset_motion_state():
+
+def reset_motion_state() -> None:
     """Reset per-event filter counters.
 
     Call when a recording session ends so the next motion event must earn
     its consecutive-frame count from scratch rather than inheriting leftover
     state from the previous clip.
     """
-    global _consecutive_motion_frames
+    global _consecutive_motion_frames, _scene_suppress_until
     _consecutive_motion_frames = 0
     _centroid_history.clear()
+    _brightness_history.clear()
+    _scene_suppress_until = 0.0
+
+
+def _is_scene_transition(gray: float) -> bool:
+    """Return True if the rolling brightness window shows a significant jump.
+
+    Appends gray to the history on every call. Once the window is full,
+    returns True when the end-to-end delta exceeds SCENE_CHANGE_THRESHOLD.
+    A delta this large indicates a global illumination change (AGC/AEC step,
+    lights on/off) rather than a person moving through the frame.
+    """
+    _brightness_history.append(gray)
+    if len(_brightness_history) < _brightness_history.maxlen:
+        return False
+    return abs(_brightness_history[-1] - _brightness_history[0]) > config.SCENE_CHANGE_THRESHOLD
 
 
 def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
@@ -34,6 +55,10 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     flickering noise cannot accumulate credit across interruptions.
 
     Pipeline:
+        0. Scene-change gate: if mean frame brightness jumps significantly
+           over the rolling window, suppress detection for SCENE_CHANGE_SUPPRESS_SEC
+           while MOG2 re-adapts to the new illumination level. MOG2 continues
+           updating even while suppressed.
         1. MOG2 foreground mask + large-blob gate (blob area > threshold).
         2. Blob coherence: largest blob must account for MIN_BLOB_COHERENCE
            fraction of all foreground pixels. Person = one big shape;
@@ -50,10 +75,7 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
         tuple: (motion_detected, frame) where motion_detected is a bool
         and frame is the original frame unchanged.
     """
-    global _consecutive_motion_frames
-
-    fg_mask = _bg_subtractor.apply(frame)
-    contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    global _consecutive_motion_frames, _scene_suppress_until
 
     brightness = cv2.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
     threshold = (
@@ -61,6 +83,33 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
         if brightness > config.BRIGHTNESS_THRESHOLD
         else config.MOTION_THRESHOLD_NIGHT
     )
+
+    # Always apply MOG2 so the model keeps adapting to the current scene,
+    # even when the scene-change gate is suppressing motion detection below.
+    fg_mask = _bg_subtractor.apply(frame)
+
+    # --- Scene-change gate (Filter 0) ---
+    # Detect global illumination transitions and hold detection suppressed while
+    # MOG2 re-adapts. The gate arms when the brightness delta over the rolling
+    # window exceeds SCENE_CHANGE_THRESHOLD; it stays armed for
+    # SCENE_CHANGE_SUPPRESS_SEC regardless of subsequent brightness stability.
+    now = time.time()
+    if _is_scene_transition(brightness):
+        if now >= _scene_suppress_until:
+            event_log.log(
+                "SCENE_CHANGE",
+                f"gate active — brightness delta >{config.SCENE_CHANGE_THRESHOLD:.0f}",
+            )
+        _scene_suppress_until = now + config.SCENE_CHANGE_SUPPRESS_SEC
+        _consecutive_motion_frames = 0
+        _centroid_history.clear()
+        return False, frame
+    if now < _scene_suppress_until:
+        _consecutive_motion_frames = 0
+        _centroid_history.clear()
+        return False, frame
+
+    contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # --- Filter 1: large-blob gate ---
     # At least one contour must exceed the area threshold. Anything smaller

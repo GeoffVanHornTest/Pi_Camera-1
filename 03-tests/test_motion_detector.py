@@ -220,3 +220,59 @@ def test_bright_non_blue_frame_uses_day_threshold(monkeypatch):
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
         motion, _ = motion_detector.detect(motion_frame)
     assert motion is True
+
+
+# --- Scene-change gate tests (regression for #96) ---
+
+
+def _fill_brightness_history(gray_value: float, n: int | None = None) -> None:
+    """Pre-load the brightness history deque with n copies of gray_value."""
+    n = n if n is not None else config.SCENE_CHANGE_WINDOW_FRAMES
+    for _ in range(n):
+        motion_detector._brightness_history.append(gray_value)
+
+
+def test_scene_change_gate_not_triggered_on_flat_brightness():
+    """Constant brightness must not arm the scene-change gate."""
+    _fill_brightness_history(50.0)
+    motion_detector.detect(np.full(_SHAPE, [50, 50, 50], dtype=np.uint8))
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+def test_scene_change_gate_armed_on_large_brightness_jump():
+    """A jump larger than SCENE_CHANGE_THRESHOLD must arm the suppress timer.
+
+    Regression for #96: AGC/AEC step during sunrise raised frame brightness
+    by ~10+ gray units, which MOG2 classified as scene-wide foreground.
+    With SCENE_CHANGE_THRESHOLD=5, a 12-unit delta (baseline 50 → 62) must
+    set _scene_suppress_until to a future timestamp.
+    """
+    _fill_brightness_history(50.0, n=config.SCENE_CHANGE_WINDOW_FRAMES - 1)
+    # gray([62,62,62]) ≈ 62; delta = 62−50 = 12 > 5 → gate arms
+    motion_detector.detect(np.full(_SHAPE, [62, 62, 62], dtype=np.uint8))
+    assert motion_detector._scene_suppress_until > 0.0
+
+
+def test_scene_change_gate_suppresses_detect_while_active():
+    """detect() must return False while the suppress timer has not expired."""
+    motion_detector._scene_suppress_until = time.time() + 9999
+    motion, _ = motion_detector.detect(white_frame())
+    assert motion is False
+
+
+def test_scene_change_gate_allows_motion_after_expiry():
+    """Once the suppress timer expires, motion can be detected again."""
+    motion_detector._scene_suppress_until = 0.0  # already expired
+    _warm_up()
+    for _ in range(config.MIN_CONSECUTIVE_FRAMES):
+        motion, _ = motion_detector.detect(white_frame())
+    assert motion is True
+
+
+def test_reset_clears_brightness_history_and_suppress_timer():
+    """reset_motion_state() must wipe brightness history and suppress timer."""
+    _fill_brightness_history(50.0)
+    motion_detector._scene_suppress_until = 9999.0
+    motion_detector.reset_motion_state()
+    assert len(motion_detector._brightness_history) == 0
+    assert motion_detector._scene_suppress_until == 0.0

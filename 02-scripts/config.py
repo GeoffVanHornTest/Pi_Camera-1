@@ -47,6 +47,28 @@ MOTION_THRESHOLD_NIGHT = 7500
 BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
 
+# --- Scene-change detection gate ---
+# MOG2 cannot distinguish a global lighting change (AGC/AEC step adjustments,
+# lights on/off, sunrise glare) from real motion — it sees both as foreground.
+# This gate tracks a rolling window of mean frame brightness and suppresses
+# detection when a significant jump is detected, giving MOG2 time to re-adapt.
+#
+# Confirmed root cause of 2026-07-22 false-positive burst (10 clips, 07:48–08:28):
+# camera AGC/AEC stepped during sunrise, creating frame-wide pixel-value shifts
+# that MOG2 classified as foreground. See issue #96 and #19 for full analysis.
+#
+# SCENE_CHANGE_WINDOW_FRAMES: frames of brightness history to track.
+#   150 frames = 5 seconds at 30 fps — long enough to smooth sensor noise,
+#   short enough to catch a discrete AGC step within one suppression window.
+# SCENE_CHANGE_THRESHOLD: gray-unit delta across the window that arms the gate.
+#   5.0 catches AGC steps (~10+ units) while ignoring sunrise drift
+#   (~0.03 units over 5 s) and sensor noise (~1–2 units peak-to-peak).
+# SCENE_CHANGE_SUPPRESS_SEC: seconds to hold detection suppressed after the gate
+#   fires. 10 s gives MOG2 ~300 frames to re-adapt to the new brightness level.
+SCENE_CHANGE_WINDOW_FRAMES = 150
+SCENE_CHANGE_THRESHOLD = 5.0
+SCENE_CHANGE_SUPPRESS_SEC = 10
+
 # --- Layered motion filters ---
 # MIN_CONSECUTIVE_FRAMES: how many back-to-back frames must pass all blob checks
 # before detect() returns True. Flickering leaves rarely sustain N consecutive
