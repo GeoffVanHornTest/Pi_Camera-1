@@ -585,10 +585,14 @@
 <h2 id="what-it-does">What it does</h2>
 <ul>
 <li>Detects motion using OpenCV MOG2 background subtraction with day/night threshold switching</li>
+<li>Suppresses false triggers from lighting transitions (sunrise, AGC steps) via a rolling scene-change brightness gate</li>
+<li>Filters out insects, foliage, and reflections using blob coherence and consecutive-frame requirements</li>
 <li>Captures a snapshot when motion is detected</li>
 <li>Sends the snapshot instantly to a <strong>Telegram</strong> chat via Bot API</li>
-<li>Records a video clip of the motion event</li>
+<li>Records a video clip of the motion event with 8-second pre-roll from a circular ring buffer</li>
 <li>Uploads the finished clip to <strong>Dropbox</strong> and sends the share link via Telegram</li>
+<li>Logs all detection events (motion, scene-change, Telegram, upload) to a persistent rotating file in <code>05-logs/</code></li>
+<li>All tunable parameters exposed as config constants, with a JSON override layer for future GUI integration</li>
 </ul>
 <h2 id="hardware">Hardware</h2>
 <ul>

@@ -578,6 +578,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#analyze_brightness_channels_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze_brightness_channels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analyze_brightness_channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze_brightness_channels
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -820,6 +842,28 @@
     <span class="md-ellipsis">
       
         cross_analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analyze_brightness_channels_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze_brightness_channels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analyze_brightness_channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze_brightness_channels
       
     </span>
   </a>
@@ -1346,6 +1390,54 @@ on clip name. Produces a confidence score (0-9) and final verdict per clip.</p>
 7-9  FALSE_TRIGGER</p>
 </details>        <p>Run from 02-scripts/:
     python cross_analysis.py</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="analyze_brightness_channels_1">analyze_brightness_channels</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="analyze_brightness_channels"></a>
+    <div class="doc doc-contents first">
+
+        <p>Channel comparison — Blue channel vs true luminance per clip.</p>
+<p>For each clip, samples the first 10 frames and reports:
+  blue_mean      — cv2.mean(frame)[0]  (what the system currently uses)
+  luminance_mean — 0.114<em>B + 0.587</em>G + 0.299*R  (ITU-R BT.601 luma)
+  grey_mean      — cv2.cvtColor(frame, BGR2GRAY).mean()  (OpenCV grayscale)
+  threshold_used — DAY or NIGHT based on current BRIGHTNESS_THRESHOLD vs blue_mean
+  correct_thresh — DAY or NIGHT based on luminance_mean</p>
+<p>This directly quantifies the #60 bug: if threshold_used != correct_thresh,
+the system was using the wrong motion sensitivity for that clip.</p>
+<p>Run from 02-scripts/:
+    uv run python analyze_brightness_channels.py</p>
 
 
 
