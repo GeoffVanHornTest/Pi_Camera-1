@@ -7,7 +7,13 @@ Use it to resume work on a new machine or after a long break.
 
 ## Current state (2026-07-22)
 
-**Branch:** `feature/night-detection` — fixes #60, #19, #96 from overnight/morning field datasets; adds persistent event log (#93). PR into `dev` pending.
+**Branch:** `feature/night-detection` — motion detection reliability overhaul driven by overnight and morning field data. Four areas of work:
+1. **Brightness measurement fix (#60)** — day/night threshold selection now uses true grayscale luminance instead of the Blue channel, which IR/red illuminators inflate 5–7×. 13/19 overnight clips had the wrong threshold applied under the old code.
+2. **Sunrise/AGC false-trigger gate (#96, closes #19)** — a rolling 5-second brightness window detects discrete camera AGC steps (~10+ gray units) and suppresses MOG2 detection for 10 s while the background model re-adapts. Root-caused from 10 false positives in a 40-minute morning window (2026-07-22, 07:48–08:28).
+3. **Persistent event log (#93)** — rotating file handler in `05-logs/pi_camera.log` records STARTUP, MOTION, SPLIT, STOP, TELEGRAM, UPLOAD, SCENE_CHANGE, and FATAL events for post-hoc troubleshooting.
+4. **Test hardening (#94 #95)** — session-scoped conftest isolation prevents test runs polluting the production log; two regression tests lock in the grayscale fix against reversion.
+
+8 commits ahead of `dev`. CI extended to cover `dev` branch. PR pending post-overnight-run hardware verification.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
