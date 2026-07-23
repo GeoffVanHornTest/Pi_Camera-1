@@ -5,13 +5,13 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-21)
+## Current state (2026-07-22)
 
-**Branch:** `feature/night-detection` — fixes #60 and #19 from overnight field dataset; adds persistent event log (#93). PR into `dev` pending.
+**Branch:** `feature/night-detection` — fixes #60, #19, #96 from overnight/morning field datasets; adds persistent event log (#93). PR into `dev` pending.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 87 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+**Tests:** 92 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
@@ -32,6 +32,8 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |
 | 29 | enhancement | Web GUI — Flask + Tailscale (v0.5.0) |
 
+**Issues closed on this branch (auto-close on PR merge):** #60, #93, #96, #19
+
 **Data collected (issue #28):**
 
 | # | Position | Lighting | Status |
@@ -40,6 +42,7 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 | 2 | New (repositioned) | Day | Done — 18 clips, 2026-07-15 |
 | 3 | New | Night | Done — 1 clip (startup trigger only), 2026-07-16 |
 | 4 | New | Overnight (midnight–9:45am) | Done — 19 clips, 2026-07-21; used to diagnose #60 and calibrate #19 |
+| 5 | New | Morning (06:23–08:28) | Done — 15 clips, 2026-07-22; 5 true positives (people), 10 false positives (sunrise AGC); used to diagnose and fix #96 |
 | 5 | Original | Night | Planned — facing open window, car lights expected |
 | 6 | TBD | Day (supervised) | Planned — operator present, labelled in real time |
 
@@ -169,11 +172,11 @@ PI_Camera/
 │   ├── storage.py           # Timestamped filenames, cleanup
 │   ├── telegram_notifier.py # Telegram Bot API — send_photo(), send_message()
 │   ├── dropbox_uploader.py  # Dropbox OAuth + upload, returns shareable URL
-│   ├── event_log.py         # Persistent event log — motion, Telegram, Dropbox outcomes
+│   ├── event_log.py         # Persistent event log — motion, Telegram, Dropbox, scene-change outcomes
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 9-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (85 passing)
+├── 03-tests/                # pytest unit tests (92 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)
