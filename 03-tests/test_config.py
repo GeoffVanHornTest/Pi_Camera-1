@@ -62,3 +62,19 @@ def test_min_blob_coherence_is_valid_fraction():
 def test_centroid_history_len_is_positive_int():
     assert isinstance(config.CENTROID_HISTORY_LEN, int)
     assert config.CENTROID_HISTORY_LEN >= 1
+
+
+def test_scene_change_window_sec_is_positive():
+    assert config.SCENE_CHANGE_WINDOW_SEC > 0
+
+
+def test_scene_change_window_frames_derived_from_sec_and_fps():
+    assert config.SCENE_CHANGE_WINDOW_FRAMES == config.SCENE_CHANGE_WINDOW_SEC * config.FPS
+
+
+def test_scene_change_threshold_is_positive():
+    assert config.SCENE_CHANGE_THRESHOLD > 0
+
+
+def test_scene_change_suppress_sec_is_positive():
+    assert config.SCENE_CHANGE_SUPPRESS_SEC > 0

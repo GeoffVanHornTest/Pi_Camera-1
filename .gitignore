@@ -225,4 +225,7 @@ __marimo__/
 05-logs/*
 !05-logs/.gitkeep
 
+# PI Camera — GUI runtime config overrides (written by Flask GUI, never committed)
+config_overrides.json
+
 02-scripts/service_account.json

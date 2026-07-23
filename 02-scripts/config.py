@@ -10,6 +10,7 @@ loaded from a .env file for credentials and defined as constants for
 tunable parameters. Change a value here and it takes effect everywhere.
 """
 
+import json as _json
 import os
 
 from dotenv import load_dotenv
@@ -57,15 +58,17 @@ MOTION_COOLDOWN_SEC = 10
 # camera AGC/AEC stepped during sunrise, creating frame-wide pixel-value shifts
 # that MOG2 classified as foreground. See issue #96 and #19 for full analysis.
 #
-# SCENE_CHANGE_WINDOW_FRAMES: frames of brightness history to track.
-#   150 frames = 5 seconds at 30 fps — long enough to smooth sensor noise,
-#   short enough to catch a discrete AGC step within one suppression window.
+# SCENE_CHANGE_WINDOW_SEC: rolling brightness window length in seconds.
+#   5 s is long enough to smooth sensor noise while still catching a discrete
+#   AGC step within one suppression window. SCENE_CHANGE_WINDOW_FRAMES is
+#   derived from this value and FPS — edit this constant, not the frames one.
 # SCENE_CHANGE_THRESHOLD: gray-unit delta across the window that arms the gate.
 #   5.0 catches AGC steps (~10+ units) while ignoring sunrise drift
 #   (~0.03 units over 5 s) and sensor noise (~1–2 units peak-to-peak).
 # SCENE_CHANGE_SUPPRESS_SEC: seconds to hold detection suppressed after the gate
 #   fires. 10 s gives MOG2 ~300 frames to re-adapt to the new brightness level.
-SCENE_CHANGE_WINDOW_FRAMES = 150
+SCENE_CHANGE_WINDOW_SEC = 5
+SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS  # derived — do not edit directly
 SCENE_CHANGE_THRESHOLD = 5.0
 SCENE_CHANGE_SUPPRESS_SEC = 10
 
@@ -143,3 +146,30 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
+
+# --- Runtime overrides (written by the GUI, applied on every restart) ---
+# config_overrides.json at the project root can override any public constant
+# defined above. The GUI writes this file; changes take effect on the next
+# service restart. Keys absent from this module are silently ignored.
+#
+# GUI-tunable (restart required, no hardware re-init):
+#   MOTION_THRESHOLD_DAY, MOTION_THRESHOLD_NIGHT, BRIGHTNESS_THRESHOLD,
+#   MOTION_COOLDOWN_SEC, MIN_CONSECUTIVE_FRAMES, MIN_BLOB_COHERENCE,
+#   POST_MOTION_BUFFER_SEC, MAX_RECORD_SEC, NOTIFICATION_COOLDOWN_SEC,
+#   SCENE_CHANGE_WINDOW_SEC, SCENE_CHANGE_THRESHOLD, SCENE_CHANGE_SUPPRESS_SEC
+#
+# Hardware re-init required (picamera2 must reinitialise on restart):
+#   RESOLUTION, FPS, PRE_ROLL_SEC, VIDEO_BITRATE_BPS
+#
+# Managed via .env — not overridable here:
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DROPBOX_APP_KEY,
+#   DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN
+_OVERRIDES_PATH = os.path.join(_BASE_DIR, "config_overrides.json")
+if os.path.exists(_OVERRIDES_PATH):
+    with open(_OVERRIDES_PATH) as _f:
+        for _k, _v in _json.load(_f).items():
+            if _k in globals() and not _k.startswith("_"):
+                globals()[_k] = _v
+
+# Re-derive after overrides so SCENE_CHANGE_WINDOW_SEC changes propagate.
+SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS
