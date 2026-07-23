@@ -13,11 +13,11 @@ Use it to resume work on a new machine or after a long break.
 3. **Persistent event log (#93)** — rotating file handler in `05-logs/pi_camera.log` records STARTUP, MOTION, SPLIT, STOP, TELEGRAM, UPLOAD, SCENE_CHANGE, and FATAL events for post-hoc troubleshooting.
 4. **Test hardening (#94 #95)** — session-scoped conftest isolation prevents test runs polluting the production log; two regression tests lock in the grayscale fix against reversion.
 
-8 commits ahead of `dev`. CI extended to cover `dev` branch. PR pending post-overnight-run hardware verification.
+10 commits ahead of `dev`. CI extended to cover `dev` branch. PR pending post-overnight-run hardware verification.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 92 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+**Tests:** 96 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
@@ -182,7 +182,7 @@ PI_Camera/
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 9-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (92 passing)
+├── 03-tests/                # pytest unit tests (96 passing)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)

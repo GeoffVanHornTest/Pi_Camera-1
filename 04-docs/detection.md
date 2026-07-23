@@ -1,6 +1,6 @@
 # Motion Detection & Filtering
 
-The detector runs every frame in a four-stage pipeline. Each stage must pass before the next runs. Failure at any stage resets the consecutive-frame counter so short-lived noise cannot accumulate credit across interruptions.
+The detector runs every frame through a pipeline that has five stages. MOG2 and the brightness measurement always run — they are not gated. Filter 0 (scene-change gate) runs first and can short-circuit the frame before blob analysis. Filters 1–3 evaluate the blob characteristics of frames that survive Filter 0. Failure at any stage resets the consecutive-frame counter so short-lived noise cannot accumulate credit across interruptions.
 
 ---
 
@@ -35,6 +35,35 @@ Brightness is derived from a grayscale conversion of the BGR frame. Using a raw 
 | `MOTION_THRESHOLD_NIGHT` | 7 500 px² | Minimum contour area in IR/dark mode |
 
 Both thresholds are currently equal, calibrated from an overnight field dataset (midnight–9:45am, 19 clips). The separate constants are retained so they can be tuned independently as more night data is collected.
+
+---
+
+## Filter 0 — scene-change gate
+
+MOG2 cannot distinguish a global illumination change from real motion — both produce frame-wide foreground. Confirmed false-trigger mechanism (2026-07-22, 07:48–08:28): camera AGC/AEC stepped discretely during sunrise, raising mean frame brightness by ~10+ gray units in a single frame. MOG2 classified this as 919 601 px² of foreground on a 921 600 px² frame — nearly the entire image — triggering 10 consecutive false clips over 40 minutes.
+
+Filter 0 addresses this by tracking mean frame brightness over a rolling window and suppressing detection whenever a significant step is detected:
+
+```python
+def _is_scene_transition(gray: float) -> bool:
+    _brightness_history.append(gray)
+    if len(_brightness_history) < _brightness_history.maxlen:
+        return False
+    return abs(_brightness_history[-1] - _brightness_history[0]) > config.SCENE_CHANGE_THRESHOLD
+```
+
+When `_is_scene_transition()` returns `True`, or while the suppression timer is active, `detect()` returns `False` immediately. MOG2 **continues updating** during suppression — the background model re-adapts to the new brightness level so that legitimate motion after the transition is caught promptly.
+
+A `SCENE_CHANGE` entry is written to the event log the first time the gate fires for each transition.
+
+| Config key | Default | Purpose |
+|---|---|---|
+| `SCENE_CHANGE_WINDOW_SEC` | 5 | Rolling brightness window length in seconds. Edit this constant — `SCENE_CHANGE_WINDOW_FRAMES` is derived from it. |
+| `SCENE_CHANGE_WINDOW_FRAMES` | 150 | Derived: `SCENE_CHANGE_WINDOW_SEC × FPS`. Do not edit directly. |
+| `SCENE_CHANGE_THRESHOLD` | 5.0 | Gray-unit end-to-end delta across the window that arms the gate. Calibrated: catches AGC steps (~10+ units); ignores sunrise drift (~0.03 units/5 s) and sensor noise (~1–2 units peak-to-peak). |
+| `SCENE_CHANGE_SUPPRESS_SEC` | 10 | Seconds to hold detection suppressed after the gate fires. Gives MOG2 ~300 frames to re-adapt. |
+
+All four constants are GUI-tunable via `config_overrides.json` (restart required; no hardware re-init).
 
 ---
 
@@ -109,9 +138,12 @@ def new_event_allowed():
 At the end of every recording session `reset_motion_state()` is called:
 
 ```python
-def reset_motion_state():
+def reset_motion_state() -> None:
+    global _consecutive_motion_frames, _scene_suppress_until
     _consecutive_motion_frames = 0
     _centroid_history.clear()
+    _brightness_history.clear()
+    _scene_suppress_until = 0.0
 ```
 
-This ensures the next event must earn its consecutive-frame count from scratch rather than inheriting leftover state from a previous clip. Without this, a long recording could exit with `_consecutive_motion_frames` already at 3, making the next trigger instant even if the new motion is marginal.
+This ensures the next event must earn its consecutive-frame count from scratch rather than inheriting leftover state from a previous clip. The scene-change suppression timer and brightness history are also cleared so a transition that occurred during recording does not carry a suppression window into the next event.
