@@ -62,14 +62,19 @@ MOTION_COOLDOWN_SEC = 10
 #   5 s is long enough to smooth sensor noise while still catching a discrete
 #   AGC step within one suppression window. SCENE_CHANGE_WINDOW_FRAMES is
 #   derived from this value and FPS — edit this constant, not the frames one.
-# SCENE_CHANGE_THRESHOLD: gray-unit delta across the window that arms the gate.
-#   5.0 catches AGC steps (~10+ units) while ignoring sunrise drift
-#   (~0.03 units over 5 s) and sensor noise (~1–2 units peak-to-peak).
+# SCENE_CHANGE_THRESHOLD: gray-unit end-to-end delta across the rolling window
+#   that arms the gate. 15.0 is calibrated for the two-filter architecture:
+#   the instant-step pre-filter (INSTANT_STEP_THRESHOLD) already catches single-
+#   frame AGC/AEC steps (8–12+ units); the rolling window only needs to catch
+#   large sustained drifts (≥15 units) that MOG2 cannot track. The original
+#   5.0 value fired on midday cloud-cover drift (5–10 units over 5 s), which
+#   MOG2 handles natively — causing spurious suppression and missed events.
+#   Calibrated from field data 2026-07-24; see issue #105.
 # SCENE_CHANGE_SUPPRESS_SEC: seconds to hold detection suppressed after the gate
 #   fires. 10 s gives MOG2 ~300 frames to re-adapt to the new brightness level.
 SCENE_CHANGE_WINDOW_SEC = 5
 SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS  # derived — do not edit directly
-SCENE_CHANGE_THRESHOLD = 5.0
+SCENE_CHANGE_THRESHOLD = 15.0
 SCENE_CHANGE_SUPPRESS_SEC = 10
 # INSTANT_STEP_THRESHOLD: frame-to-frame brightness delta that arms the gate
 # immediately, without waiting for the 5-second rolling window. AGC/AEC steps
