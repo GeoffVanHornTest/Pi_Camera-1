@@ -71,6 +71,11 @@ SCENE_CHANGE_WINDOW_SEC = 5
 SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS  # derived — do not edit directly
 SCENE_CHANGE_THRESHOLD = 5.0
 SCENE_CHANGE_SUPPRESS_SEC = 10
+# INSTANT_STEP_THRESHOLD: frame-to-frame brightness delta that arms the gate
+# immediately, without waiting for the 5-second rolling window. AGC/AEC steps
+# are ~10+ gray units in a single frame; sensor noise is ~1–2 units. 8.0 gives
+# 4× headroom above noise and catches all observed AGC events.
+INSTANT_STEP_THRESHOLD = 8.0
 
 # --- Layered motion filters ---
 # MIN_CONSECUTIVE_FRAMES: how many back-to-back frames must pass all blob checks
@@ -156,20 +161,36 @@ DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
 #   MOTION_THRESHOLD_DAY, MOTION_THRESHOLD_NIGHT, BRIGHTNESS_THRESHOLD,
 #   MOTION_COOLDOWN_SEC, MIN_CONSECUTIVE_FRAMES, MIN_BLOB_COHERENCE,
 #   POST_MOTION_BUFFER_SEC, MAX_RECORD_SEC, NOTIFICATION_COOLDOWN_SEC,
-#   SCENE_CHANGE_WINDOW_SEC, SCENE_CHANGE_THRESHOLD, SCENE_CHANGE_SUPPRESS_SEC
+#   SCENE_CHANGE_WINDOW_SEC, SCENE_CHANGE_THRESHOLD, SCENE_CHANGE_SUPPRESS_SEC,
+#   INSTANT_STEP_THRESHOLD
 #
 # Hardware re-init required (picamera2 must reinitialise on restart):
 #   RESOLUTION, FPS, PRE_ROLL_SEC, VIDEO_BITRATE_BPS
 #
-# Managed via .env — not overridable here:
+# Managed via .env — not overridable here (enforced by _CREDENTIAL_KEYS below):
 #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DROPBOX_APP_KEY,
 #   DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN
+_CREDENTIAL_KEYS = {
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "DROPBOX_APP_KEY",
+    "DROPBOX_APP_SECRET",
+    "DROPBOX_REFRESH_TOKEN",
+}
 _OVERRIDES_PATH = os.path.join(_BASE_DIR, "config_overrides.json")
 if os.path.exists(_OVERRIDES_PATH):
-    with open(_OVERRIDES_PATH) as _f:
-        for _k, _v in _json.load(_f).items():
-            if _k in globals() and not _k.startswith("_"):
-                globals()[_k] = _v
+    try:
+        with open(_OVERRIDES_PATH) as _f:
+            for _k, _v in _json.load(_f).items():
+                if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
+                    try:
+                        globals()[_k] = type(globals()[_k])(_v)
+                    except (TypeError, ValueError):
+                        pass  # wrong type in JSON — ignore, keep default
+    except (_json.JSONDecodeError, OSError):
+        pass  # malformed or unreadable — run with defaults
 
 # Re-derive after overrides so SCENE_CHANGE_WINDOW_SEC changes propagate.
-SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS
+# int() guards against a JSON float (e.g. 5.0) producing a float maxlen
+# that crashes deque() at import.
+SCENE_CHANGE_WINDOW_FRAMES = int(SCENE_CHANGE_WINDOW_SEC * FPS)

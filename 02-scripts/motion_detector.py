@@ -17,6 +17,7 @@ _centroid_history = deque(maxlen=config.CENTROID_HISTORY_LEN)  # (cx, cy) ring b
 # Scene-change gate state — rolling brightness window + suppress timer.
 _brightness_history: deque = deque(maxlen=config.SCENE_CHANGE_WINDOW_FRAMES)
 _scene_suppress_until: float = 0.0
+_last_gate_brightness: float = 0.0  # previous frame's background brightness for instant-step check
 
 
 def reset_motion_state() -> None:
@@ -26,11 +27,14 @@ def reset_motion_state() -> None:
     its consecutive-frame count from scratch rather than inheriting leftover
     state from the previous clip.
     """
-    global _consecutive_motion_frames, _scene_suppress_until
+    global _consecutive_motion_frames
     _consecutive_motion_frames = 0
     _centroid_history.clear()
     _brightness_history.clear()
-    _scene_suppress_until = 0.0
+    # _scene_suppress_until intentionally NOT reset — the gate timer is a
+    # property of the external scene, not of the per-clip detection state.
+    # Zeroing it here would re-enable detection mid-transition if a clip
+    # ends while the gate is still suppressing (#100).
 
 
 def _is_scene_transition(gray: float) -> bool:
@@ -75,9 +79,10 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
         tuple: (motion_detected, frame) where motion_detected is a bool
         and frame is the original frame unchanged.
     """
-    global _consecutive_motion_frames, _scene_suppress_until
+    global _consecutive_motion_frames, _scene_suppress_until, _last_gate_brightness
 
-    brightness = cv2.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    brightness = cv2.mean(gray_frame)[0]
     threshold = (
         config.MOTION_THRESHOLD_DAY
         if brightness > config.BRIGHTNESS_THRESHOLD
@@ -88,22 +93,49 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     # even when the scene-change gate is suppressing motion detection below.
     fg_mask = _bg_subtractor.apply(frame)
 
+    # Gate brightness from background pixels only — excludes any large/close
+    # subject from shifting the brightness metric and arming the gate against
+    # itself (#97). Falls back to full-frame mean if MOG2 has no background yet.
+    bg_mask = cv2.bitwise_not(fg_mask)
+    bg_count = cv2.countNonZero(bg_mask)
+    gate_brightness = cv2.mean(gray_frame, mask=bg_mask)[0] if bg_count > 0 else brightness
+
     # --- Scene-change gate (Filter 0) ---
-    # Detect global illumination transitions and hold detection suppressed while
-    # MOG2 re-adapts. The gate arms when the brightness delta over the rolling
-    # window exceeds SCENE_CHANGE_THRESHOLD; it stays armed for
-    # SCENE_CHANGE_SUPPRESS_SEC regardless of subsequent brightness stability.
+    # Two-stage check. Stage A catches instantaneous single-frame AGC/AEC steps
+    # before the rolling window accumulates enough history (#104). Stage B catches
+    # slower transitions using the 5-second rolling window (#96). Both arm
+    # SCENE_CHANGE_SUPPRESS_SEC of suppression. The timer only ever extends
+    # forward — it is never reset on a repeated fire within the same transition,
+    # keeping actual suppression at SCENE_CHANGE_SUPPRESS_SEC not a multiple (#98).
     now = time.time()
-    if _is_scene_transition(brightness):
+
+    # Stage A — instant-step pre-filter
+    prev_gate_brightness = _last_gate_brightness
+    _last_gate_brightness = gate_brightness
+    instant_delta = abs(gate_brightness - prev_gate_brightness)
+    if prev_gate_brightness > 0.0 and instant_delta > config.INSTANT_STEP_THRESHOLD:
         if now >= _scene_suppress_until:
             event_log.log(
                 "SCENE_CHANGE",
-                f"gate active — brightness delta >{config.SCENE_CHANGE_THRESHOLD:.0f}",
+                f"instant step {instant_delta:.1f} gray units",
             )
-        _scene_suppress_until = now + config.SCENE_CHANGE_SUPPRESS_SEC
+        _scene_suppress_until = max(_scene_suppress_until, now + config.SCENE_CHANGE_SUPPRESS_SEC)
         _consecutive_motion_frames = 0
         _centroid_history.clear()
         return False, frame
+
+    # Stage B — rolling-window gate
+    if _is_scene_transition(gate_brightness):
+        if now >= _scene_suppress_until:
+            event_log.log(
+                "SCENE_CHANGE",
+                f"rolling gate — delta >{config.SCENE_CHANGE_THRESHOLD:.0f} over {config.SCENE_CHANGE_WINDOW_SEC}s",
+            )
+        _scene_suppress_until = max(_scene_suppress_until, now + config.SCENE_CHANGE_SUPPRESS_SEC)
+        _consecutive_motion_frames = 0
+        _centroid_history.clear()
+        return False, frame
+
     if now < _scene_suppress_until:
         _consecutive_motion_frames = 0
         _centroid_history.clear()

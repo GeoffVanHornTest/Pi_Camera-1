@@ -51,8 +51,8 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
             event_log.log("TELEGRAM_OK", f"Photo sent: {image_path}")
         else:
             desc = body.get("description", body)
-            print(f"[telegram] send_photo API error: {desc}")
-            event_log.log("TELEGRAM_FAIL", f"send_photo API error: {desc}")
+            print(f"[telegram] send_photo API error: {_safe_err(str(desc))}")
+            event_log.log("TELEGRAM_FAIL", f"send_photo API error: {_safe_err(str(desc))}")
     except Exception as e:
         print(f"[telegram] send_photo failed: {_safe_err(e)}")
         event_log.log("TELEGRAM_FAIL", f"send_photo error: {_safe_err(e)}")
@@ -76,8 +76,8 @@ def send_message(text: str) -> None:
             event_log.log("TELEGRAM_OK", f"Message sent: {text}")
         else:
             desc = body.get("description", body)
-            print(f"[telegram] send_message API error: {desc}")
-            event_log.log("TELEGRAM_FAIL", f"send_message API error: {desc}")
+            print(f"[telegram] send_message API error: {_safe_err(str(desc))}")
+            event_log.log("TELEGRAM_FAIL", f"send_message API error: {_safe_err(str(desc))}")
     except Exception as e:
         print(f"[telegram] send_message failed: {_safe_err(e)}")
         event_log.log("TELEGRAM_FAIL", f"send_message error: {_safe_err(e)}")
