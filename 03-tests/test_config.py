@@ -1,9 +1,12 @@
+import importlib
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
 import config
+import pytest
 
 
 def test_resolution_is_tuple():
@@ -78,3 +81,48 @@ def test_scene_change_threshold_is_positive():
 
 def test_scene_change_suppress_sec_is_positive():
     assert config.SCENE_CHANGE_SUPPRESS_SEC > 0
+
+
+# --- Override layer tests (#102) ---
+
+
+@pytest.fixture
+def restore_config():
+    """Reload config to defaults after a test that calls importlib.reload(config)."""
+    yield
+    os.environ.pop("_PI_CAMERA_OVERRIDES_PATH", None)
+    importlib.reload(config)
+
+
+def test_valid_override_applies(tmp_path, monkeypatch, restore_config):
+    """A valid JSON override changes the named config constant."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"SCENE_CHANGE_THRESHOLD": 42.0}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.SCENE_CHANGE_THRESHOLD == 42.0
+
+
+def test_missing_overrides_file_uses_defaults(monkeypatch, restore_config):
+    """A nonexistent overrides path leaves all constants at their defaults."""
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", "/nonexistent/overrides.json")
+    importlib.reload(config)
+    assert config.SCENE_CHANGE_THRESHOLD == 15.0
+
+
+def test_malformed_json_uses_defaults(tmp_path, monkeypatch, restore_config):
+    """Malformed JSON in the overrides file leaves constants at their defaults."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text("{not: valid json}")
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.SCENE_CHANGE_THRESHOLD == 15.0
+
+
+def test_credential_key_not_overridable(tmp_path, monkeypatch, restore_config):
+    """Credential keys in the overrides file are silently ignored."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"TELEGRAM_BOT_TOKEN": "leaked_token_123"}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.TELEGRAM_BOT_TOKEN != "leaked_token_123"

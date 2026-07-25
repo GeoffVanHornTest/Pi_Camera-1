@@ -28,6 +28,8 @@ def fresh_motion_detector():
         detectShadows=False
     )
     motion_detector.reset_motion_state()
+    motion_detector._scene_suppress_until = 0.0
+    motion_detector._last_gate_brightness = 0.0
 
 
 def static_frame():
@@ -168,6 +170,10 @@ def _warm_up_on(base_frame, n=30):
     for _ in range(n):
         motion_detector.detect(base_frame)
     motion_detector.reset_motion_state()
+    motion_detector._scene_suppress_until = 0.0
+    motion_detector._last_gate_brightness = float(
+        cv2.mean(cv2.cvtColor(base_frame, cv2.COLOR_BGR2GRAY))[0]
+    )
 
 
 def frame_with_blob(bg_bgr, blob_bgr, blob_size=200):
@@ -235,21 +241,23 @@ def _fill_brightness_history(gray_value: float, n: int | None = None) -> None:
 def test_scene_change_gate_not_triggered_on_flat_brightness():
     """Constant brightness must not arm the scene-change gate."""
     _fill_brightness_history(50.0)
+    motion_detector._last_gate_brightness = 50.0  # match history — instant-step delta = 0
     motion_detector.detect(np.full(_SHAPE, [50, 50, 50], dtype=np.uint8))
     assert motion_detector._scene_suppress_until == 0.0
 
 
 def test_scene_change_gate_armed_on_large_brightness_jump():
-    """A jump larger than SCENE_CHANGE_THRESHOLD must arm the suppress timer.
+    """Rolling-window gate arms when end-to-end delta > SCENE_CHANGE_THRESHOLD.
 
-    Regression for #96: AGC/AEC step during sunrise raised frame brightness
-    by ~10+ gray units, which MOG2 classified as scene-wide foreground.
-    With SCENE_CHANGE_THRESHOLD=5, a 12-unit delta (baseline 50 → 62) must
-    set _scene_suppress_until to a future timestamp.
+    Regression for #96: sustained AGC/AEC drift raised frame brightness ~20
+    gray units over the 5-second window. With SCENE_CHANGE_THRESHOLD=15, a
+    20-unit delta (baseline 50 → 70) must set _scene_suppress_until to a
+    future timestamp.
     """
     _fill_brightness_history(50.0, n=config.SCENE_CHANGE_WINDOW_FRAMES - 1)
-    # gray([62,62,62]) ≈ 62; delta = 62−50 = 12 > 5 → gate arms
-    motion_detector.detect(np.full(_SHAPE, [62, 62, 62], dtype=np.uint8))
+    motion_detector._last_gate_brightness = 70.0  # prime instant-step: prev≈current, delta=0
+    # gray([70,70,70]) ≈ 70; rolling history 50→70 = 20 > SCENE_CHANGE_THRESHOLD(15) → gate arms
+    motion_detector.detect(np.full(_SHAPE, [70, 70, 70], dtype=np.uint8))
     assert motion_detector._scene_suppress_until > 0.0
 
 
@@ -269,10 +277,15 @@ def test_scene_change_gate_allows_motion_after_expiry():
     assert motion is True
 
 
-def test_reset_clears_brightness_history_and_suppress_timer():
-    """reset_motion_state() must wipe brightness history and suppress timer."""
+def test_reset_clears_brightness_history_preserves_suppress_timer():
+    """reset_motion_state() wipes brightness history but preserves the suppress timer.
+
+    The gate timer is a property of the external scene, not per-clip state (#100).
+    Zeroing it on reset would re-enable detection mid-transition if a clip ends
+    while the gate is still active.
+    """
     _fill_brightness_history(50.0)
     motion_detector._scene_suppress_until = 9999.0
     motion_detector.reset_motion_state()
     assert len(motion_detector._brightness_history) == 0
-    assert motion_detector._scene_suppress_until == 0.0
+    assert motion_detector._scene_suppress_until == 9999.0
