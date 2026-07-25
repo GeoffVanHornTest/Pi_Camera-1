@@ -8,6 +8,7 @@ re-triggers don't flood the chat. send_message() (clip-ready links) always sends
 import time
 
 import config
+import cv2
 import event_log
 import requests
 
@@ -37,13 +38,17 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
         event_log.log("TELEGRAM_SKIP", "photo suppressed — within cooldown")
         return
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
+    img = cv2.imread(image_path)
+    if img is not None:
+        small = cv2.resize(img, (640, 360))
+        cv2.imwrite(image_path, small, [cv2.IMWRITE_JPEG_QUALITY, 80])
     try:
         with open(image_path, "rb") as f:
             resp = requests.post(
                 url,
                 data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
                 files={"photo": f},
-                timeout=15,
+                timeout=30,
             )
         body = resp.json()
         if body.get("ok"):
@@ -51,9 +56,11 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
             event_log.log("TELEGRAM_OK", f"Photo sent: {image_path}")
         else:
             desc = body.get("description", body)
+            _last_photo_sent = time.time()
             print(f"[telegram] send_photo API error: {_safe_err(str(desc))}")
             event_log.log("TELEGRAM_FAIL", f"send_photo API error: {_safe_err(str(desc))}")
     except Exception as e:
+        _last_photo_sent = time.time()
         print(f"[telegram] send_photo failed: {_safe_err(e)}")
         event_log.log("TELEGRAM_FAIL", f"send_photo error: {_safe_err(e)}")
 
