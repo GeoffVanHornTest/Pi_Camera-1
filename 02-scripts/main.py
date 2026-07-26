@@ -5,6 +5,7 @@
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
+import os
 import signal
 import sys
 import threading
@@ -183,6 +184,19 @@ def main():
 
 def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
+    # Hard deadline: if graceful shutdown stalls (full disk, blocked picamera2
+    # finalisation), force exit after 10 s so SIGTERM always terminates (#108).
+    def _force():
+        try:
+            event_log.log("SHUTDOWN_FORCED", "graceful shutdown exceeded 10 s — forcing exit")
+        except Exception:
+            pass
+        os._exit(1)
+
+    _deadline = threading.Timer(10.0, _force)
+    _deadline.daemon = True
+    _deadline.start()
+
     print("\nStopping PI Camera...")
     event_log.log("SHUTDOWN", reason)
     if _currently_recording:
@@ -191,6 +205,7 @@ def _shutdown(reason: str = "requested") -> None:
     else:
         _cancel_watchdog()
     camera.close()
+    _deadline.cancel()
     print("Camera released. Goodbye.")
     sys.exit(0)
 
