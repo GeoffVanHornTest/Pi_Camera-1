@@ -96,7 +96,6 @@ See `CHANGELOG.md` for full details.
 opencv-python-headless
 python-dotenv
 requests
-dropbox
 ```
 
 **System packages** (apt only — cannot be pip-installed):
