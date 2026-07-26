@@ -82,6 +82,8 @@ def test_watchdog_split_calls_split_recording(monkeypatch):
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
     monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock(); _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     _mock_camera.reset_mock()
     call_count = [0]
@@ -170,6 +172,8 @@ def test_recording_continues_when_snapshot_raises(monkeypatch):
     monkeypatch.setattr(main.storage, "save_snapshot", failing_snapshot)
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _free = MagicMock(); _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     call_count = [0]
 
@@ -236,3 +240,72 @@ def test_consecutive_error_counter_resets_on_success(monkeypatch):
     # Should NOT raise RuntimeError — the counter reset on frame 3
     with pytest.raises(KeyboardInterrupt):
         main.main()
+
+
+# --- #107: low-disk guard ---
+
+
+def test_recording_skipped_when_disk_full(monkeypatch):
+    """start_recording must not be called when free disk space is below MIN_FREE_DISK_MB."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _full = MagicMock(); _full.free = 100 * 1024 * 1024  # 100 MB — below threshold
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _full)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.start_recording.assert_not_called()
+
+
+def test_recording_starts_when_disk_has_space(monkeypatch):
+    """start_recording must be called when free disk space exceeds MIN_FREE_DISK_MB."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock(); _free.free = 10 * 1024 ** 3  # 10 GB — above threshold
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.start_recording.assert_called_once()

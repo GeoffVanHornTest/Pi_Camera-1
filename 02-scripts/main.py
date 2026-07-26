@@ -6,6 +6,7 @@ Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
 import os
+import shutil
 import signal
 import sys
 import threading
@@ -120,6 +121,10 @@ def main():
                 motion_last_seen = now
 
             if motion and not currently_recording and motion_detector.new_event_allowed():
+                free_mb = shutil.disk_usage(config.CLIPS_DIR).free // (1024 * 1024)
+                if free_mb < config.MIN_FREE_DISK_MB:
+                    event_log.log("DISK_FULL", f"Only {free_mb} MB free — skipping clip")
+                    continue
                 filepath = storage.get_video_path()
                 camera.start_recording(filepath)
                 _arm_watchdog()

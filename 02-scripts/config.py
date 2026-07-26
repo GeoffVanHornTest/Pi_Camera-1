@@ -199,3 +199,10 @@ if os.path.exists(_OVERRIDES_PATH):
 # int() guards against a JSON float (e.g. 5.0) producing a float maxlen
 # that crashes deque() at import.
 SCENE_CHANGE_WINDOW_FRAMES = int(SCENE_CHANGE_WINDOW_SEC * FPS)
+
+# --- Disk space guard ---
+# Minimum free space on the clips filesystem before a new recording is allowed
+# to start. If free space drops below this threshold the clip is skipped and a
+# DISK_FULL event is logged. 500 MB leaves room for one max-length clip
+# (MAX_RECORD_SEC=120 at 2.5 Mbps ≈ 37 MB) with generous headroom.
+MIN_FREE_DISK_MB = 500
