@@ -104,9 +104,12 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     # Two-stage check. Stage A catches instantaneous single-frame AGC/AEC steps
     # before the rolling window accumulates enough history (#104). Stage B catches
     # slower transitions using the 5-second rolling window (#96). Both arm
-    # SCENE_CHANGE_SUPPRESS_SEC of suppression. The timer only ever extends
-    # forward — it is never reset on a repeated fire within the same transition,
-    # keeping actual suppression at SCENE_CHANGE_SUPPRESS_SEC not a multiple (#98).
+    # SCENE_CHANGE_SUPPRESS_SEC of suppression. The timer uses max() so it only
+    # ever moves forward: each trigger during an ongoing transition extends it to
+    # now + SUPPRESS_SEC. Total suppression from the first trigger therefore equals
+    # the transition duration plus SUPPRESS_SEC — a 5 s sunrise step suppresses for
+    # ~15 s, not 10 s. This is intentional: detection resumes SUPPRESS_SEC after
+    # the scene stabilises, not SUPPRESS_SEC after it started changing (#98).
     now = time.time()
 
     # Stage A — instant-step pre-filter

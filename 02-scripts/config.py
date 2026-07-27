@@ -70,8 +70,14 @@ MOTION_COOLDOWN_SEC = 10
 #   5.0 value fired on midday cloud-cover drift (5–10 units over 5 s), which
 #   MOG2 handles natively — causing spurious suppression and missed events.
 #   Calibrated from field data 2026-07-24; see issue #105.
-# SCENE_CHANGE_SUPPRESS_SEC: seconds to hold detection suppressed after the gate
-#   fires. 10 s gives MOG2 ~300 frames to re-adapt to the new brightness level.
+# SCENE_CHANGE_SUPPRESS_SEC: seconds MOG2 gets to re-adapt after the scene
+#   stabilises (i.e. after the last gate trigger, not the first). During a
+#   multi-second transition the gate fires on every frame; the suppress timer
+#   extends to now+SUPPRESS_SEC on each firing, so total wall-clock suppression
+#   from the first trigger equals transition_duration + SUPPRESS_SEC. A 5 s
+#   sunrise step therefore suppresses for ~15 s — correct, since detection
+#   would be noisy throughout the transition regardless. 10 s (300 frames at
+#   30 fps) gives MOG2 enough history to re-adapt after the scene settles (#98).
 SCENE_CHANGE_WINDOW_SEC = 5
 SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS  # derived — do not edit directly
 SCENE_CHANGE_THRESHOLD = 15.0
