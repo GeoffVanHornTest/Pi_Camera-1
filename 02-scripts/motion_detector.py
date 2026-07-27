@@ -17,7 +17,7 @@ _centroid_history = deque(maxlen=config.CENTROID_HISTORY_LEN)  # (cx, cy) ring b
 # Scene-change gate state — rolling brightness window + suppress timer.
 _brightness_history: deque = deque(maxlen=config.SCENE_CHANGE_WINDOW_FRAMES)
 _scene_suppress_until: float = 0.0
-_last_gate_brightness: float = 0.0  # previous frame's background brightness for instant-step check
+_last_gate_brightness: float = -1.0  # previous frame's background brightness; -1.0 = no prior frame
 
 
 def reset_motion_state() -> None:
@@ -116,7 +116,7 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     prev_gate_brightness = _last_gate_brightness
     _last_gate_brightness = gate_brightness
     instant_delta = abs(gate_brightness - prev_gate_brightness)
-    if prev_gate_brightness != 0.0 and instant_delta > config.INSTANT_STEP_THRESHOLD:
+    if prev_gate_brightness >= 0.0 and instant_delta > config.INSTANT_STEP_THRESHOLD:
         if now >= _scene_suppress_until:
             event_log.log(
                 "SCENE_CHANGE",

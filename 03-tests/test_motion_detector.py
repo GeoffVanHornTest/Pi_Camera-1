@@ -29,7 +29,7 @@ def fresh_motion_detector():
     )
     motion_detector.reset_motion_state()
     motion_detector._scene_suppress_until = 0.0
-    motion_detector._last_gate_brightness = 0.0
+    motion_detector._last_gate_brightness = -1.0
 
 
 def static_frame():
@@ -42,10 +42,16 @@ def white_frame():
 
 
 def _warm_up():
-    """Feed 30 static frames so MOG2 settles its background model."""
+    """Feed 30 static frames so MOG2 settles its background model.
+
+    Resets _last_gate_brightness to -1.0 (no-prior-frame sentinel) so
+    Stage A does not fire on the first motion frame in tests that are
+    testing the consecutive-frame gate rather than the brightness gate.
+    """
     for _ in range(30):
         motion_detector.detect(static_frame())
     motion_detector.reset_motion_state()
+    motion_detector._last_gate_brightness = -1.0
 
 
 # --- Return-type tests ---
@@ -362,6 +368,35 @@ def test_gate_not_armed_by_slow_agc_background_drift():
     motion_detector.detect(colored_frame([96, 96, 96]))
 
     # Gate must not arm — the drift was hardware AGC, not a scene change
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+def test_stage_a_fires_after_pitch_black_frame():
+    """Stage A must fire when the previous frame was genuinely pitch-black (brightness 0.0).
+
+    Regression for #117: the prior fix changed > 0.0 to != 0.0, which are
+    identical for pixel means (always >= 0). A zero-brightness previous frame
+    still disabled Stage A, missing real AGC steps out of darkness.
+    After the fix, 0.0 is a valid prior brightness (not a sentinel); only
+    -1.0 (impossible pixel mean) means 'no prior frame'.
+    """
+    motion_detector._last_gate_brightness = 0.0  # previous frame was pitch black
+
+    motion_detector.detect(colored_frame([48, 48, 48]))  # delta ≈ 48 >> threshold 8.0
+
+    assert motion_detector._scene_suppress_until > 0.0
+    assert len(motion_detector._brightness_history) == 0
+
+
+def test_stage_a_skipped_on_first_frame():
+    """Stage A must not fire on the very first frame (no prior brightness to compare).
+
+    The -1.0 sentinel means 'no prior frame yet'. Without it, an initial
+    gate_brightness of e.g. 80.0 would compute instant_delta = |80 - (-1)| = 81,
+    which exceeds the threshold and incorrectly suppresses detection on startup.
+    """
+    assert motion_detector._last_gate_brightness == -1.0  # fresh fixture state
+    motion_detector.detect(colored_frame([80, 80, 80]))
     assert motion_detector._scene_suppress_until == 0.0
 
 
