@@ -134,6 +134,7 @@ def test_upload_and_notify_sends_failure_on_no_url(monkeypatch):
 
 def test_shutdown_calls_finish_clip_when_recording(monkeypatch):
     """_shutdown() must call camera.stop_recording if a clip is in progress."""
+    monkeypatch.setattr(main.threading, "Timer", lambda *a, **kw: MagicMock())
     monkeypatch.setattr(main, "_currently_recording", True)
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     _mock_camera.reset_mock()
@@ -146,6 +147,7 @@ def test_shutdown_calls_finish_clip_when_recording(monkeypatch):
 
 def test_shutdown_skips_finish_clip_when_not_recording(monkeypatch):
     """_shutdown() must not call camera.stop_recording if no clip is in progress."""
+    monkeypatch.setattr(main.threading, "Timer", lambda *a, **kw: MagicMock())
     monkeypatch.setattr(main, "_currently_recording", False)
     _mock_camera.reset_mock()
 
