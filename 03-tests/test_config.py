@@ -159,9 +159,9 @@ def test_negative_numeric_override_not_applied(tmp_path, monkeypatch, restore_co
 
 
 def test_path_traversal_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """A CLIPS_DIR value containing '..' is silently ignored."""
+    """A relative CLIPS_DIR that resolves into the source tree is silently ignored."""
     overrides = tmp_path / "overrides.json"
-    overrides.write_text(json.dumps({"CLIPS_DIR": "../../etc/clips"}))
+    overrides.write_text(json.dumps({"CLIPS_DIR": "02-scripts"}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     original = config.CLIPS_DIR
     importlib.reload(config)
@@ -169,13 +169,54 @@ def test_path_traversal_in_clips_dir_rejected(tmp_path, monkeypatch, restore_con
 
 
 def test_absolute_path_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """An absolute CLIPS_DIR override is silently ignored."""
+    """An absolute CLIPS_DIR override pointing to a system dir is silently ignored."""
     overrides = tmp_path / "overrides.json"
     overrides.write_text(json.dumps({"CLIPS_DIR": "/etc/cron.d"}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     original = config.CLIPS_DIR
     importlib.reload(config)
     assert config.CLIPS_DIR == original
+
+
+def test_relative_dot_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A relative CLIPS_DIR of '.' is rejected after canonicalization.
+
+    '.' passes both '..' and isabs() checks but resolves to the CWD which,
+    under systemd WorkingDirectory=.../02-scripts, is the source tree.
+    cleanup_old_clips() would then delete source files after 7 days.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": "."}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_scripts_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A CLIPS_DIR override that resolves into the source tree is silently ignored."""
+    import os as _os
+    overrides = tmp_path / "overrides.json"
+    scripts_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "02-scripts")
+    overrides.write_text(json.dumps({"CLIPS_DIR": scripts_dir}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_overflow_float_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A JSON value that overflows to float('inf') must not crash on int() coercion.
+
+    1e999 is valid JSON and parses to float('inf'). int(float('inf')) raises
+    OverflowError — not TypeError/ValueError — which was previously uncaught,
+    crashing the service on import indefinitely under Restart=always.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text('{"FPS": 1e999}')
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)  # must not raise
+    assert config.FPS > 0
 
 
 def test_non_scalar_override_not_applied(tmp_path, monkeypatch, restore_config):

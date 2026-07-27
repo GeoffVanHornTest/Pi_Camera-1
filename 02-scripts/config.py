@@ -200,16 +200,29 @@ if os.path.exists(_OVERRIDES_PATH):
             raise ValueError  # top-level [] or scalar — treat as malformed
         for _k, _v in _overrides.items():
             if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
-                if _k in ("CLIPS_DIR", "LOG_FILE") and (
-                    ".." in str(_v) or os.path.isabs(str(_v))
-                ):
-                    continue  # block path traversal and absolute paths
+                if _k in ("CLIPS_DIR", "LOG_FILE"):
+                    _abs = os.path.realpath(
+                        str(_v) if os.path.isabs(str(_v))
+                        else os.path.join(_BASE_DIR, str(_v))
+                    )
+                    if _abs == _BASE_DIR:
+                        continue  # project root itself is never a valid clips/log path
+                    _blocked = [
+                        os.path.join(_BASE_DIR, "02-scripts"),
+                        os.path.join(_BASE_DIR, "03-tests"),
+                        os.path.join(_BASE_DIR, ".github"),
+                        "/etc", "/usr", "/bin", "/sbin",
+                        "/lib", "/proc", "/sys", "/root", "/boot",
+                    ]
+                    if any(_abs == p or _abs.startswith(p + os.sep) for p in _blocked):
+                        continue  # block source tree and system dirs
+                    _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):
                     continue  # skip non-scalar types — coercion corrupts them (tuple → char seq)
                 try:
                     _coerced = type(globals()[_k])(_v)
-                except (TypeError, ValueError):
-                    continue  # wrong type — keep default
+                except (TypeError, ValueError, OverflowError):
+                    continue  # wrong type, out of range, or non-finite — keep default
                 if isinstance(_coerced, (int, float)) and _coerced <= 0:
                     continue  # zero/negative breaks derived constants (deque, FPS)
                 if isinstance(globals()[_k], float) and 0 < globals()[_k] < 1:
