@@ -128,8 +128,8 @@ def main():
                 filepath = storage.get_video_path()
                 camera.start_recording(filepath)
                 _arm_watchdog()
-                currently_recording = True
                 _currently_recording = True
+                currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
                 event_log.log("MOTION", f"Recording started → {filepath}")
@@ -210,7 +210,6 @@ def _shutdown(reason: str = "requested") -> None:
     else:
         _cancel_watchdog()
     camera.close()
-    _deadline.cancel()
     print("Camera released. Goodbye.")
     sys.exit(0)
 

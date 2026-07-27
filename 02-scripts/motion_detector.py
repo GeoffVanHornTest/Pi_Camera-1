@@ -113,7 +113,7 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
     prev_gate_brightness = _last_gate_brightness
     _last_gate_brightness = gate_brightness
     instant_delta = abs(gate_brightness - prev_gate_brightness)
-    if prev_gate_brightness > 0.0 and instant_delta > config.INSTANT_STEP_THRESHOLD:
+    if prev_gate_brightness != 0.0 and instant_delta > config.INSTANT_STEP_THRESHOLD:
         if now >= _scene_suppress_until:
             event_log.log(
                 "SCENE_CHANGE",
