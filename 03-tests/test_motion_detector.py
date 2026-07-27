@@ -315,6 +315,56 @@ def test_gate_brightness_uses_background_pixels_not_full_frame():
     assert abs(motion_detector._last_gate_brightness - 80.0) < 20.0
 
 
+@pytest.mark.xfail(
+    reason="#120: MOG2 absorbs stationary subject into background model after ~50 frames, "
+           "reintroducing subject pixels into the background mask and arming the gate"
+)
+def test_gate_not_armed_when_subject_holds_still():
+    """Stationary subject held for 55 frames must not arm the scene-change gate.
+
+    Expected failure (#120): after ~50 frames of stillness, MOG2 absorbs the
+    subject's pixels into the background model. Gate brightness (background-only
+    mean) jumps to include the subject's pixel values, arming Stage A against
+    the real subject.
+    """
+    base = np.full(_SHAPE, [40, 40, 40], dtype=np.uint8)
+    subject_frame = frame_with_blob([40, 40, 40], [200, 200, 200], blob_size=400)
+    _warm_up_on(base)
+
+    for _ in range(55):
+        motion_detector.detect(subject_frame)
+
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+@pytest.mark.xfail(
+    reason="#114: rolling-window gate cannot distinguish camera AGC gain drift "
+           "from a real scene illumination change — 16-unit AGC drift over 5s "
+           "exceeds SCENE_CHANGE_THRESHOLD and suppresses detection"
+)
+def test_gate_not_armed_by_slow_agc_background_drift():
+    """Slow AGC-induced background brightness drift must not arm the rolling-window gate.
+
+    Expected failure (#114): over ~5 s a dark subject causes camera firmware to
+    raise analog gain, lifting background pixel values by ~16 gray units. The
+    rolling window sees end-to-end delta 16 > SCENE_CHANGE_THRESHOLD (15.0) and
+    arms the gate — suppressing detection of the subject that triggered the AGC.
+
+    The #97 fix excludes the subject's own pixels from gate_brightness but
+    cannot compensate for AGC-induced changes to background pixels themselves.
+    Demonstrated here by pre-loading 149 frames of stable background at 80.0,
+    then feeding one frame at 96 (the post-AGC level) to complete the window.
+    """
+    _fill_brightness_history(80.0, n=config.SCENE_CHANGE_WINDOW_FRAMES - 1)
+    motion_detector._last_gate_brightness = 95.0  # prime Stage A so delta ≈ 1 < 8
+
+    # Post-AGC frame: background brightness 16 units above baseline
+    motion_detector.detect(colored_frame([96, 96, 96]))
+
+    # Gate must not arm — the drift was hardware AGC, not a scene change
+    assert motion_detector._scene_suppress_until == 0.0
+
+
 def test_stage_a_fires_on_single_frame_brightness_step():
     """Stage A instant-step filter arms the gate without waiting for a full window.
 
