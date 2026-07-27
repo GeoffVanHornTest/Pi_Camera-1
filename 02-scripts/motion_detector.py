@@ -129,7 +129,8 @@ def detect(frame: np.ndarray) -> tuple[bool, np.ndarray]:
         if now >= _scene_suppress_until:
             event_log.log(
                 "SCENE_CHANGE",
-                f"rolling gate — delta >{config.SCENE_CHANGE_THRESHOLD:.0f} over {config.SCENE_CHANGE_WINDOW_SEC}s",
+                f"rolling gate — delta >{config.SCENE_CHANGE_THRESHOLD:.0f}"
+                f" over {config.SCENE_CHANGE_WINDOW_SEC}s",
             )
         _scene_suppress_until = max(_scene_suppress_until, now + config.SCENE_CHANGE_SUPPRESS_SEC)
         _consecutive_motion_frames = 0

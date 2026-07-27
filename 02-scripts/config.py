@@ -182,7 +182,10 @@ _CREDENTIAL_KEYS = {
     "DROPBOX_APP_SECRET",
     "DROPBOX_REFRESH_TOKEN",
 }
-_OVERRIDES_PATH = os.environ.get("_PI_CAMERA_OVERRIDES_PATH") or os.path.join(_BASE_DIR, "config_overrides.json")
+_OVERRIDES_PATH = (
+    os.environ.get("_PI_CAMERA_OVERRIDES_PATH")
+    or os.path.join(_BASE_DIR, "config_overrides.json")
+)
 if os.path.exists(_OVERRIDES_PATH):
     try:
         with open(_OVERRIDES_PATH) as _f:

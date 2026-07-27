@@ -82,7 +82,8 @@ def test_watchdog_split_calls_split_recording(monkeypatch):
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
     monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
-    _free = MagicMock(); _free.free = 10 * 1024 ** 3
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
     monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     _mock_camera.reset_mock()
@@ -172,7 +173,8 @@ def test_recording_continues_when_snapshot_raises(monkeypatch):
     monkeypatch.setattr(main.storage, "save_snapshot", failing_snapshot)
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
-    _free = MagicMock(); _free.free = 10 * 1024 ** 3
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
     monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     call_count = [0]
@@ -252,7 +254,8 @@ def test_recording_skipped_when_disk_full(monkeypatch):
     monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
     monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
     monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
-    _full = MagicMock(); _full.free = 100 * 1024 * 1024  # 100 MB — below threshold
+    _full = MagicMock()
+    _full.free = 100 * 1024 * 1024  # 100 MB — below threshold
     monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _full)
 
     call_count = [0]
@@ -288,7 +291,8 @@ def test_recording_starts_when_disk_has_space(monkeypatch):
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
     monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
-    _free = MagicMock(); _free.free = 10 * 1024 ** 3  # 10 GB — above threshold
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3  # 10 GB — above threshold
     monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     call_count = [0]
