@@ -5,6 +5,7 @@ send_photo() enforces NOTIFICATION_COOLDOWN_SEC between alerts so that rapid
 re-triggers don't flood the chat. send_message() (clip-ready links) always sends.
 """
 
+import os
 import time
 
 import config
@@ -38,12 +39,16 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
         event_log.log("TELEGRAM_SKIP", "photo suppressed — within cooldown")
         return
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
+    _thumb_path = None
     img = cv2.imread(image_path)
     if img is not None:
+        base, ext = os.path.splitext(image_path)
+        _thumb_path = base + "_thumb" + ext
         small = cv2.resize(img, (640, 360))
-        cv2.imwrite(image_path, small, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        cv2.imwrite(_thumb_path, small, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    upload_path = _thumb_path if _thumb_path else image_path
     try:
-        with open(image_path, "rb") as f:
+        with open(upload_path, "rb") as f:
             resp = requests.post(
                 url,
                 data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
@@ -63,6 +68,12 @@ def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
         _last_photo_sent = time.time()
         print(f"[telegram] send_photo failed: {_safe_err(e)}")
         event_log.log("TELEGRAM_FAIL", f"send_photo error: {_safe_err(e)}")
+    finally:
+        if _thumb_path:
+            try:
+                os.remove(_thumb_path)
+            except OSError:
+                pass
 
 
 def send_message(text: str) -> None:

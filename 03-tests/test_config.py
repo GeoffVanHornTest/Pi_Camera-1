@@ -126,3 +126,43 @@ def test_credential_key_not_overridable(tmp_path, monkeypatch, restore_config):
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     importlib.reload(config)
     assert config.TELEGRAM_BOT_TOKEN != "leaked_token_123"
+
+
+# --- Override layer crash-path tests (#110) ---
+
+
+def test_non_dict_json_uses_defaults(tmp_path, monkeypatch, restore_config):
+    """A top-level JSON array leaves all constants at their defaults."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text("[]")
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.SCENE_CHANGE_THRESHOLD == 15.0
+
+
+def test_zero_numeric_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A zero value for a numeric constant is silently ignored."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"FPS": 0}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.FPS > 0
+
+
+def test_negative_numeric_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A negative value for a numeric constant is silently ignored."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"SCENE_CHANGE_WINDOW_SEC": -1}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.SCENE_CHANGE_WINDOW_SEC > 0
+
+
+def test_path_traversal_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A CLIPS_DIR value containing '..' is silently ignored."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": "../../etc/clips"}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original

@@ -189,14 +189,22 @@ _OVERRIDES_PATH = (
 if os.path.exists(_OVERRIDES_PATH):
     try:
         with open(_OVERRIDES_PATH) as _f:
-            for _k, _v in _json.load(_f).items():
-                if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
-                    try:
-                        globals()[_k] = type(globals()[_k])(_v)
-                    except (TypeError, ValueError):
-                        pass  # wrong type in JSON — ignore, keep default
-    except (_json.JSONDecodeError, OSError):
-        pass  # malformed or unreadable — run with defaults
+            _overrides = _json.load(_f)
+        if not isinstance(_overrides, dict):
+            raise ValueError  # top-level [] or scalar — treat as malformed
+        for _k, _v in _overrides.items():
+            if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
+                if _k in ("CLIPS_DIR", "LOG_FILE") and ".." in str(_v):
+                    continue  # block path traversal
+                try:
+                    _coerced = type(globals()[_k])(_v)
+                except (TypeError, ValueError):
+                    continue  # wrong type — keep default
+                if isinstance(_coerced, (int, float)) and _coerced <= 0:
+                    continue  # zero/negative breaks derived constants (deque, FPS)
+                globals()[_k] = _coerced
+    except (_json.JSONDecodeError, OSError, ValueError):
+        pass  # malformed, unreadable, or non-dict — run with defaults
 
 # Re-derive after overrides so SCENE_CHANGE_WINDOW_SEC changes propagate.
 # int() guards against a JSON float (e.g. 5.0) producing a float maxlen
