@@ -200,14 +200,21 @@ if os.path.exists(_OVERRIDES_PATH):
             raise ValueError  # top-level [] or scalar — treat as malformed
         for _k, _v in _overrides.items():
             if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
-                if _k in ("CLIPS_DIR", "LOG_FILE") and ".." in str(_v):
-                    continue  # block path traversal
+                if _k in ("CLIPS_DIR", "LOG_FILE") and (
+                    ".." in str(_v) or os.path.isabs(str(_v))
+                ):
+                    continue  # block path traversal and absolute paths
+                if not isinstance(globals()[_k], (int, float, str, bool)):
+                    continue  # skip non-scalar types — coercion corrupts them (tuple → char seq)
                 try:
                     _coerced = type(globals()[_k])(_v)
                 except (TypeError, ValueError):
                     continue  # wrong type — keep default
                 if isinstance(_coerced, (int, float)) and _coerced <= 0:
                     continue  # zero/negative breaks derived constants (deque, FPS)
+                if isinstance(globals()[_k], float) and 0 < globals()[_k] < 1:
+                    if not (0 < _coerced < 1):
+                        continue  # fraction constants (e.g. MIN_BLOB_COHERENCE) must stay in (0,1)
                 globals()[_k] = _coerced
     except (_json.JSONDecodeError, OSError, ValueError):
         pass  # malformed, unreadable, or non-dict — run with defaults

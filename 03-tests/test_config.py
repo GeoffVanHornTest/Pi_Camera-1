@@ -166,3 +166,40 @@ def test_path_traversal_in_clips_dir_rejected(tmp_path, monkeypatch, restore_con
     original = config.CLIPS_DIR
     importlib.reload(config)
     assert config.CLIPS_DIR == original
+
+
+def test_absolute_path_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """An absolute CLIPS_DIR override is silently ignored."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": "/etc/cron.d"}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_non_scalar_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A non-scalar constant (tuple RESOLUTION) is silently skipped.
+
+    type(tuple)("640x480") produces ('6','4','0','x','4','8','0') with no
+    exception — the guard must reject it before coercion is attempted.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"RESOLUTION": "640x480"}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.RESOLUTION
+    importlib.reload(config)
+    assert config.RESOLUTION == original
+
+
+def test_out_of_range_fraction_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A fraction constant overridden outside (0, 1) is silently ignored.
+
+    MIN_BLOB_COHERENCE=50.0 passes the >0 guard but permanently disables
+    motion detection since no blob coherence value can reach 50.0.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"MIN_BLOB_COHERENCE": 50.0}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert 0 < config.MIN_BLOB_COHERENCE < 1
