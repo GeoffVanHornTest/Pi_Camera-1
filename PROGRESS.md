@@ -5,19 +5,22 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-22)
+## Current state (2026-07-26)
 
-**Branch:** `feature/night-detection` — motion detection reliability overhaul driven by overnight and morning field data. Four areas of work:
+**Branch:** `feature/night-detection` — motion detection reliability overhaul driven by overnight and morning field data. Seven areas of work:
 1. **Brightness measurement fix (#60)** — day/night threshold selection now uses true grayscale luminance instead of the Blue channel, which IR/red illuminators inflate 5–7×. 13/19 overnight clips had the wrong threshold applied under the old code.
-2. **Sunrise/AGC false-trigger gate (#96, closes #19)** — a rolling 5-second brightness window detects discrete camera AGC steps (~10+ gray units) and suppresses MOG2 detection for 10 s while the background model re-adapts. Root-caused from 10 false positives in a 40-minute morning window (2026-07-22, 07:48–08:28).
-3. **Persistent event log (#93)** — rotating file handler in `05-logs/pi_camera.log` records STARTUP, MOTION, SPLIT, STOP, TELEGRAM, UPLOAD, SCENE_CHANGE, and FATAL events for post-hoc troubleshooting.
-4. **Test hardening (#94 #95)** — session-scoped conftest isolation prevents test runs polluting the production log; two regression tests lock in the grayscale fix against reversion.
+2. **Scene-change gate — two-filter architecture (#96, #97, #98, #100, #104, #105, closes #19)** — Stage A instant-step pre-filter catches single-frame AGC jumps ≥ 8.0 gray units; Stage B rolling-window gate catches sustained drifts ≥ 15.0 units over 5 s. Gate brightness computed from background pixels only so a bright foreground subject cannot arm the gate against itself. Suppress timer extends through the transition and expires `SCENE_CHANGE_SUPPRESS_SEC` after the scene stabilises. Root-caused from 10 false positives in 40 minutes (2026-07-22, 07:48–08:28); field-verified 2026-07-26: 17 HUMAN, 3 LIGHTING, 4 other in 24 clips.
+3. **Persistent event log (#93)** — rotating file handler in `05-logs/pi_camera.log` records STARTUP, SHUTDOWN, MOTION, SPLIT, STOP, TELEGRAM, UPLOAD, SCENE_CHANGE, DISK_FULL, SNAPSHOT_FAIL, and FATAL events for post-hoc troubleshooting.
+4. **Config override layer (#99, #102, #110)** — `config_overrides.json` (path overridable via `_PI_CAMERA_OVERRIDES_PATH` env var) allows runtime parameter changes without editing `config.py`. Credential keys blocked from override. Type coercion, zero/negative guard, path-traversal rejection, and non-dict JSON protection all in place.
+5. **Operational reliability fixes** — low-disk guard before recording (#107); send_photo resize + backoff + thumbnail-path fix (#106, #113); Telegram API error redaction in event log (#101); SIGTERM shutdown deadline and race condition fixes (#108, #111, #112).
+6. **Test hardening (#94, #95, #102, #107, #110, #115)** — session-scoped conftest isolation; regression tests for day/night fix, override layer, disk guard, background-pixel gate, and Stage A filter.
+7. **Documentation and code quality** — suppress-window behaviour clarified as "SUPPRESS_SEC after scene stabilises" (#98); ruff CI green (#109); CHANGELOG and PROGRESS updated (#116).
 
-10 commits ahead of `dev`. CI extended to cover `dev` branch. PR pending post-overnight-run hardware verification.
+20+ commits ahead of `dev`. PR ready.
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 96 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
+**Tests:** 108 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
 `dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
@@ -28,17 +31,23 @@ The deployed `/etc/systemd/system/pi-camera.service` uses `ExecStart=/bin/true` 
 `Restart` commented out to prevent the service competing with manual test sessions.
 Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
-**Open issues (priority order):**
+**Open issues (post-PR):**
 
 | # | Type | Title |
 |---|------|-------|
+| 114 | bug | Scene-change gate can suppress real subject via AGC gain response — known limitation, needs field calibration data before fixing |
 | 88 | refactor | camera.py acquires hardware at import time — should be deferred to initialize() |
-| 20 | enhancement | Improve day/night detection + AI snapshot validation |
+| 20 | enhancement | AI snapshot validation (day/night detection component closed by #60) |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |
 | 29 | enhancement | Web GUI — Flask + Tailscale (v0.5.0) |
 
-**Issues closed on this branch (auto-close on PR merge):** #60, #93, #96, #19
+**Issues resolved on this branch:**
+
+| Status | Issues |
+|--------|--------|
+| Closed during branch | #94, #95, #98, #103, #109, #110, #111, #112, #113, #115, #116, #117 |
+| Auto-close on PR merge | #19, #60, #93, #96, #97, #99, #100, #101, #102, #104, #105, #106, #107, #108 |
 
 **Data collected (issue #28):**
 
