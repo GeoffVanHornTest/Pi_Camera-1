@@ -16,12 +16,13 @@ Use it to resume work on a new machine or after a long break.
 6. **Test hardening (#94, #95, #102, #107, #110, #115)** — session-scoped conftest isolation; regression tests for day/night fix, override layer, disk guard, background-pixel gate, and Stage A filter.
 7. **Documentation and code quality** — suppress-window behaviour clarified as "SUPPRESS_SEC after scene stabilises" (#98); ruff CI green (#109); CHANGELOG and PROGRESS updated (#116).
 
-20+ commits ahead of `dev`. PR ready.
+PR targeting `dev`. Issues resolved manually — GitHub auto-close requires PRing to the default branch (`main`).
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 108 passing. Covers `config`, `storage`, `motion_detector`, `telegram_notifier`,
-`dropbox_uploader`, `main`, `event_log`. `camera.py` excluded (hardware-dependent).
+**Tests:** 111 passing, 2 xfailed (known limitations #114, #120). Covers `config`, `storage`,
+`motion_detector`, `telegram_notifier`, `dropbox_uploader`, `main`, `event_log`.
+`camera.py` excluded (hardware-dependent).
 
 **Recording config:** 1280×720 @ 30fps, 2.5 Mbps, PRE_ROLL_SEC=8 (effective ~7–8s after keyframe
 alignment). Reduced from 1080p/4Mbps to address frame-drop under concurrent load (#53).
@@ -35,19 +36,17 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 | # | Type | Title |
 |---|------|-------|
-| 114 | bug | Scene-change gate can suppress real subject via AGC gain response — known limitation, needs field calibration data before fixing |
+| 120 | bug | MOG2 absorption of stationary subject causes false scene-change suppression — xfail test added, fix deferred to post-PR calibration |
+| 114 | bug | Scene-change gate can suppress real subject via AGC gain response — xfail test added, fix deferred to post-PR calibration |
 | 88 | refactor | camera.py acquires hardware at import time — should be deferred to initialize() |
 | 20 | enhancement | AI snapshot validation (day/night detection component closed by #60) |
 | 21 | enhancement | OpenCV HOG person detector as optional validator |
 | 22 | investigation | False-trigger diagnostic suite (suite built — calibration pending) |
 | 29 | enhancement | Web GUI — Flask + Tailscale (v0.5.0) |
 
-**Issues resolved on this branch:**
+**Issues resolved on this branch** (all manually closed):
 
-| Status | Issues |
-|--------|--------|
-| Closed during branch | #94, #95, #98, #103, #109, #110, #111, #112, #113, #115, #116, #117 |
-| Auto-close on PR merge | #19, #60, #93, #96, #97, #99, #100, #101, #102, #104, #105, #106, #107, #108 |
+#19, #60, #93, #94, #95, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112, #113, #115, #116, #117, #118, #119
 
 **Data collected (issue #28):**
 
