@@ -126,9 +126,9 @@ def main():
                     event_log.log("DISK_FULL", f"Only {free_mb} MB free — skipping clip")
                     continue
                 filepath = storage.get_video_path()
+                _currently_recording = True
                 camera.start_recording(filepath)
                 _arm_watchdog()
-                _currently_recording = True
                 currently_recording = True
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
@@ -162,9 +162,9 @@ def main():
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     event_log.log("STOP", "Recording stopped")
                     filepath = None
+                    _finish_clip()
                     currently_recording = False
                     _currently_recording = False
-                    _finish_clip()
 
         except (KeyboardInterrupt, SystemExit):
             raise
