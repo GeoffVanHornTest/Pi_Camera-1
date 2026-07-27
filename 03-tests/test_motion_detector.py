@@ -289,3 +289,51 @@ def test_reset_clears_brightness_history_preserves_suppress_timer():
     motion_detector.reset_motion_state()
     assert len(motion_detector._brightness_history) == 0
     assert motion_detector._scene_suppress_until == 9999.0
+
+
+def test_gate_brightness_uses_background_pixels_not_full_frame():
+    """Gate brightness tracks background pixels only, not the full-frame mean.
+
+    Regression for #97: the old code used cv2.mean(gray_frame)[0], so a large
+    bright subject walking into frame inflated gate_brightness and could arm the
+    gate against itself. After the fix, cv2.mean(gray_frame, mask=bg_mask)[0]
+    excludes foreground pixels from the brightness metric.
+
+    With a 400×400 white blob against a gray-80 background on a 1280×720 frame:
+      background-pixel mean ≈ 80   (correct after #97 fix)
+      full-frame mean       ≈ 110  (what old code would return)
+    """
+    base = np.full(_SHAPE, [80, 80, 80], dtype=np.uint8)
+    _warm_up_on(base)
+
+    blob_frame = frame_with_blob([80, 80, 80], [255, 255, 255], blob_size=400)
+    motion_detector.detect(blob_frame)
+
+    # Gate brightness must be close to the background (≈80), not the
+    # blob-inflated full-frame mean (≈110). Tolerance of 20 accounts for
+    # MOG2 boundary pixels at the blob edge leaking into the background mask.
+    assert abs(motion_detector._last_gate_brightness - 80.0) < 20.0
+
+
+def test_stage_a_fires_on_single_frame_brightness_step():
+    """Stage A instant-step filter arms the gate without waiting for a full window.
+
+    Regression for #104: before Stage A existed only Stage B (rolling window)
+    could arm the gate, requiring SCENE_CHANGE_WINDOW_FRAMES (150) frames of
+    history before reacting. A sudden AGC step in a single frame passed through
+    undetected until the window caught up.
+
+    Stage A must arm _scene_suppress_until on the very first frame where the
+    brightness delta exceeds INSTANT_STEP_THRESHOLD, and must do so before
+    Stage B appends to _brightness_history (Stage A returns early).
+    """
+    # Simulate a previous frame at brightness 40. A [60,60,60] frame gives
+    # gate_brightness ≈ 60; delta = 20 > INSTANT_STEP_THRESHOLD (8.0).
+    motion_detector._last_gate_brightness = 40.0
+
+    motion_detector.detect(colored_frame([60, 60, 60]))
+
+    assert motion_detector._scene_suppress_until > 0.0
+    # Stage A returns before _is_scene_transition() runs, so the rolling
+    # history must still be empty — confirming Stage B never executed.
+    assert len(motion_detector._brightness_history) == 0
