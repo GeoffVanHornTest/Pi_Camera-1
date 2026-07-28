@@ -315,3 +315,80 @@ def test_recording_starts_when_disk_has_space(monkeypatch):
 
     main._cancel_watchdog()
     _mock_camera.start_recording.assert_called_once()
+
+
+# --- #126: shutdown deadline must outlast legitimate shutdown work (~195s) ---
+
+
+def test_shutdown_deadline_is_300s(monkeypatch):
+    """_shutdown() must set a 300s hard deadline, not the old 10s value.
+
+    ffmpeg (30s) + Dropbox (120s) + share link (15s) + Telegram (30s) ≈ 195s.
+    A 10s deadline fired during every normal shutdown with an active clip.
+    """
+    timer_calls = []
+
+    def capture_timer(*args, **kwargs):
+        timer_calls.append(args)
+        return MagicMock()
+
+    monkeypatch.setattr(main.threading, "Timer", capture_timer)
+    monkeypatch.setattr(main, "_currently_recording", False)
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    assert len(timer_calls) >= 1
+    assert timer_calls[0][0] == 300.0, f"deadline was {timer_calls[0][0]}s, expected 300s"
+
+
+# --- #127: watchdog split must check disk space before splitting ---
+
+
+def test_watchdog_split_stopped_when_disk_full(monkeypatch):
+    """When watchdog fires and disk is full, split_recording is skipped and clip is stopped."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+
+    disk_calls = [0]
+
+    def fake_disk_usage(path):
+        disk_calls[0] += 1
+        result = MagicMock()
+        # First call: pre-start_recording check — plenty of space
+        # Subsequent calls: watchdog split check — disk full
+        result.free = 10 * 1024 ** 3 if disk_calls[0] == 1 else 100 * 1024 * 1024
+        return result
+
+    monkeypatch.setattr(main.shutil, "disk_usage", fake_disk_usage)
+
+    _mock_camera.reset_mock()
+    frame_count = [0]
+
+    def fake_get_frame():
+        frame_count[0] += 1
+        if frame_count[0] == 2:
+            main._split_event.set()
+        if frame_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+
+    _mock_camera.split_recording.assert_not_called()
+    _mock_camera.stop_recording.assert_called_once()

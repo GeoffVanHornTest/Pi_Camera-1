@@ -152,12 +152,23 @@ def main():
                     # Watchdog fired — MAX_RECORD_SEC elapsed on a background timer
                     # so this fires even if get_frame() was slow (#23).
                     print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
-                    filepath = storage.get_video_path()
-                    event_log.log("SPLIT", f"Clip split → {filepath}")
-                    camera.split_recording(filepath, on_complete=_upload_and_notify)
-                    motion_detector.reset_motion_state()
-                    motion_last_seen = now
-                    _arm_watchdog()
+                    free_mb = shutil.disk_usage(config.CLIPS_DIR).free // (1024 * 1024)
+                    if free_mb < config.MIN_FREE_DISK_MB:
+                        event_log.log(
+                            "DISK_FULL",
+                            f"Only {free_mb} MB free — stopping instead of splitting",
+                        )
+                        filepath = None
+                        _finish_clip()
+                        currently_recording = False
+                        _currently_recording = False
+                    else:
+                        filepath = storage.get_video_path()
+                        event_log.log("SPLIT", f"Clip split → {filepath}")
+                        camera.split_recording(filepath, on_complete=_upload_and_notify)
+                        motion_detector.reset_motion_state()
+                        motion_last_seen = now
+                        _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     event_log.log("STOP", "Recording stopped")
@@ -189,16 +200,20 @@ def main():
 
 def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
-    # Hard deadline: if graceful shutdown stalls (full disk, blocked picamera2
-    # finalisation), force exit after 10 s so SIGTERM always terminates (#108).
+    # Hard deadline: if graceful shutdown stalls (camera driver lockup, infinite
+    # ffmpeg hang), force exit so SIGTERM always terminates (#108/#126).
+    # 300 s is larger than the maximum legitimate shutdown work:
+    #   ffmpeg (30 s) + Dropbox upload (120 s) + share link (15 s) + Telegram (30 s) ≈ 195 s.
+    # Normal shutdowns complete before this fires; genuine stalls are killed within
+    # systemd's TimeoutStopSec window regardless.
     def _force():
         try:
-            event_log.log("SHUTDOWN_FORCED", "graceful shutdown exceeded 10 s — forcing exit")
+            event_log.log("SHUTDOWN_FORCED", "graceful shutdown exceeded 300 s — forcing exit")
         except Exception:
             pass
         os._exit(1)
 
-    _deadline = threading.Timer(10.0, _force)
+    _deadline = threading.Timer(300.0, _force)
     _deadline.daemon = True
     _deadline.start()
 

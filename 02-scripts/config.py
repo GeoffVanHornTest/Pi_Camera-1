@@ -11,6 +11,7 @@ tunable parameters. Change a value here and it takes effect everywhere.
 """
 
 import json as _json
+import math as _math
 import os
 
 from dotenv import load_dotenv
@@ -205,17 +206,21 @@ if os.path.exists(_OVERRIDES_PATH):
                         str(_v) if os.path.isabs(str(_v))
                         else os.path.join(_BASE_DIR, str(_v))
                     )
-                    if _abs == _BASE_DIR:
-                        continue  # project root itself is never a valid clips/log path
-                    _blocked = [
-                        os.path.join(_BASE_DIR, "02-scripts"),
-                        os.path.join(_BASE_DIR, "03-tests"),
-                        os.path.join(_BASE_DIR, ".github"),
-                        "/etc", "/usr", "/bin", "/sbin",
-                        "/lib", "/proc", "/sys", "/root", "/boot",
+                    # Block entire project tree — one rule covers source dirs, .env, and all
+                    # other project files. Specific-subdir blocklists miss new files.
+                    if _abs == _BASE_DIR or _abs.startswith(_BASE_DIR + os.sep):
+                        continue
+                    # Block home directory root — cleanup_old_clips() has no extension filter;
+                    # subdirectories of home (e.g. ~/clips) remain valid override targets.
+                    if _abs == os.path.expanduser("~"):
+                        continue
+                    # Block system directories
+                    _sys_dirs = [
+                        "/etc", "/usr", "/bin", "/sbin", "/lib",
+                        "/proc", "/sys", "/root", "/boot",
                     ]
-                    if any(_abs == p or _abs.startswith(p + os.sep) for p in _blocked):
-                        continue  # block source tree and system dirs
+                    if any(_abs == d or _abs.startswith(d + os.sep) for d in _sys_dirs):
+                        continue
                     _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):
                     continue  # skip non-scalar types — coercion corrupts them (tuple → char seq)
@@ -223,6 +228,8 @@ if os.path.exists(_OVERRIDES_PATH):
                     _coerced = type(globals()[_k])(_v)
                 except (TypeError, ValueError, OverflowError):
                     continue  # wrong type, out of range, or non-finite — keep default
+                if isinstance(_coerced, float) and not _math.isfinite(_coerced):
+                    continue  # NaN / ±inf pass float() silently but break all gate comparisons
                 if isinstance(_coerced, (int, float)) and _coerced <= 0:
                     continue  # zero/negative breaks derived constants (deque, FPS)
                 if isinstance(globals()[_k], float) and 0 < globals()[_k] < 1:

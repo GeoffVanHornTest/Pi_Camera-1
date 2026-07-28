@@ -1,5 +1,6 @@
 import importlib
 import json
+import math
 import os
 import sys
 
@@ -158,17 +159,57 @@ def test_negative_numeric_override_not_applied(tmp_path, monkeypatch, restore_co
     assert config.SCENE_CHANGE_WINDOW_SEC > 0
 
 
-def test_path_traversal_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """A relative CLIPS_DIR that resolves into the source tree is silently ignored."""
+def test_project_tree_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """Any CLIPS_DIR that resolves into the project tree is silently ignored.
+
+    The guard now blocks the entire _BASE_DIR tree rather than specific
+    subdirs — covers source files, .env, config overrides, and new dirs.
+    """
+    scripts_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "02-scripts")
     overrides = tmp_path / "overrides.json"
-    overrides.write_text(json.dumps({"CLIPS_DIR": "02-scripts"}))
+    overrides.write_text(json.dumps({"CLIPS_DIR": scripts_dir}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     original = config.CLIPS_DIR
     importlib.reload(config)
     assert config.CLIPS_DIR == original
 
 
-def test_absolute_path_in_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+def test_dotenv_as_log_file_rejected(tmp_path, monkeypatch, restore_config):
+    """LOG_FILE pointing at .env is rejected — log rotation would destroy credentials."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"LOG_FILE": env_path}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.LOG_FILE
+    importlib.reload(config)
+    assert config.LOG_FILE == original
+
+
+def test_relative_dot_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A relative CLIPS_DIR of '.' resolves to the project root and is rejected."""
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": "."}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_home_dir_root_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """CLIPS_DIR set to the home directory root is rejected.
+
+    cleanup_old_clips() has no extension filter; setting CLIPS_DIR to the
+    home root would delete arbitrary personal files after 7 days.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": os.path.expanduser("~")}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_system_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
     """An absolute CLIPS_DIR override pointing to a system dir is silently ignored."""
     overrides = tmp_path / "overrides.json"
     overrides.write_text(json.dumps({"CLIPS_DIR": "/etc/cron.d"}))
@@ -178,45 +219,40 @@ def test_absolute_path_in_clips_dir_rejected(tmp_path, monkeypatch, restore_conf
     assert config.CLIPS_DIR == original
 
 
-def test_relative_dot_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """A relative CLIPS_DIR of '.' is rejected after canonicalization.
-
-    '.' passes both '..' and isabs() checks but resolves to the CWD which,
-    under systemd WorkingDirectory=.../02-scripts, is the source tree.
-    cleanup_old_clips() would then delete source files after 7 days.
-    """
-    overrides = tmp_path / "overrides.json"
-    overrides.write_text(json.dumps({"CLIPS_DIR": "."}))
-    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
-    original = config.CLIPS_DIR
-    importlib.reload(config)
-    assert config.CLIPS_DIR == original
-
-
-def test_scripts_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """A CLIPS_DIR override that resolves into the source tree is silently ignored."""
-    import os as _os
-    overrides = tmp_path / "overrides.json"
-    scripts_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "02-scripts")
-    overrides.write_text(json.dumps({"CLIPS_DIR": scripts_dir}))
-    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
-    original = config.CLIPS_DIR
-    importlib.reload(config)
-    assert config.CLIPS_DIR == original
-
-
-def test_overflow_float_override_not_applied(tmp_path, monkeypatch, restore_config):
-    """A JSON value that overflows to float('inf') must not crash on int() coercion.
-
-    1e999 is valid JSON and parses to float('inf'). int(float('inf')) raises
-    OverflowError — not TypeError/ValueError — which was previously uncaught,
-    crashing the service on import indefinitely under Restart=always.
-    """
+def test_overflow_int_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """1e999 on an int constant raises OverflowError at int() — kept default."""
     overrides = tmp_path / "overrides.json"
     overrides.write_text('{"FPS": 1e999}')
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     importlib.reload(config)  # must not raise
     assert config.FPS > 0
+
+
+def test_inf_float_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """1e999 on a float constant silently produces float('inf') — must be rejected.
+
+    float(float('inf')) does not raise, so OverflowError alone is insufficient.
+    float('inf') as SCENE_CHANGE_THRESHOLD makes every gate comparison False,
+    silently disabling the entire scene-change feature.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text('{"SCENE_CHANGE_THRESHOLD": 1e999}')
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert math.isfinite(config.SCENE_CHANGE_THRESHOLD)
+
+
+def test_nan_float_override_not_applied(tmp_path, monkeypatch, restore_config):
+    """A string 'nan' coerces to float('nan') via float() — must be rejected.
+
+    float('nan') as SCENE_CHANGE_THRESHOLD makes every gate comparison False,
+    silently disabling the entire scene-change feature.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text('{"SCENE_CHANGE_THRESHOLD": "nan"}')
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert math.isfinite(config.SCENE_CHANGE_THRESHOLD)
 
 
 def test_non_scalar_override_not_applied(tmp_path, monkeypatch, restore_config):
