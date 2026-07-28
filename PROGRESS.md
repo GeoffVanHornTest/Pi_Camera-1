@@ -20,7 +20,7 @@ PR targeting `dev`. Issues resolved manually — GitHub auto-close requires PRin
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 137 passing, 2 xfailed (known limitations #114, #120). Covers `config`, `storage`,
+**Tests:** 140 passing, 2 xfailed (known limitations #114, #120). Covers `config`, `storage`,
 `motion_detector`, `telegram_notifier`, `dropbox_uploader`, `main`, `event_log`.
 `camera.py` excluded (hardware-dependent).
 
@@ -46,7 +46,7 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 **Issues resolved on this branch** (all manually closed):
 
-#19, #60, #93, #94, #95, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112, #113, #115, #116, #117, #118, #119, #121, #122, #123, #124, #125, #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140, #141, #142, #143, #144, #145, #146
+#19, #60, #93, #94, #95, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112, #113, #115, #116, #117, #118, #119, #121, #122, #123, #124, #125, #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140, #141, #142, #143, #144, #145, #146, #147
 
 **Data collected (issue #28):**
 
