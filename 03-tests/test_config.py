@@ -287,9 +287,15 @@ def test_nonexistent_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
     A symlink created at that location after config load would bypass all
     validation. Requiring existence at load time closes the TOCTOU window:
     the GUI must create the directory before writing the override.
+    Uses tmp_path so the non-existent subdir is guaranteed not to exist
+    and no real home directory path is hard-coded (#145).
     """
-    target = os.path.join(os.path.expanduser("~"), "nonexistent_clips_xyz_toctou")
-    assert not os.path.exists(target), "test precondition: path must not exist"
+    target = str(tmp_path / "nonexistent_subdir")  # pytest never creates this subdir
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(tmp_path) if p == "~" else real_expanduser(p),
+    )
     overrides = tmp_path / "overrides.json"
     overrides.write_text(json.dumps({"CLIPS_DIR": target}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
@@ -359,3 +365,109 @@ def test_out_of_range_fraction_override_not_applied(tmp_path, monkeypatch, resto
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     importlib.reload(config)
     assert 0 < config.MIN_BLOB_COHERENCE < 1
+
+
+# --- #138: islink dead code + LOG_FILE isdir() mis-validation ---
+
+
+def test_symlink_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A CLIPS_DIR that is a symlink in the input path is rejected before realpath().
+
+    realpath() resolves all symlink components, so islink() on its result is always
+    False. The check must happen on the original (pre-realpath) path (#138).
+    """
+    real_dir = tmp_path / "real_clips"
+    real_dir.mkdir()
+    link_path = tmp_path / "clips_link"
+    link_path.symlink_to(real_dir)
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(tmp_path) if p == "~" else real_expanduser(p),
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": str(link_path)}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original, (
+        "symlink CLIPS_DIR was accepted — islink() must be checked on the raw input path"
+    )
+
+
+def test_log_file_valid_path_accepted(tmp_path, monkeypatch, restore_config):
+    """A LOG_FILE override with a valid file path under ~/logs/ is accepted.
+
+    LOG_FILE expects a file path, not a directory. The parent directory must
+    exist; the file itself need not. The old isdir() guard rejected all valid
+    LOG_FILE overrides because isdir() returns False for file paths (#138).
+    """
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    log_file = logs_dir / "camera.log"  # file does not exist yet — RotatingFileHandler creates it
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(tmp_path) if p == "~" else real_expanduser(p),
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"LOG_FILE": str(log_file)}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.LOG_FILE == str(log_file), (
+        "valid LOG_FILE path was rejected — parent-directory check must accept file paths"
+    )
+
+
+def test_log_file_directory_path_rejected(tmp_path, monkeypatch, restore_config):
+    """A LOG_FILE override pointing at an existing directory is rejected.
+
+    If accepted, RotatingFileHandler raises IsADirectoryError on every write,
+    silently disabling logging for the process lifetime (#138).
+    """
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(tmp_path) if p == "~" else real_expanduser(p),
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"LOG_FILE": str(logs_dir)}))  # directory, not file
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.LOG_FILE
+    importlib.reload(config)
+    assert config.LOG_FILE == original, (
+        "directory path accepted as LOG_FILE — must reject paths where dirname == path"
+    )
+
+
+# --- #139: _home realpath normalization ---
+
+
+def test_home_symlink_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
+    """CLIPS_DIR under a realpath-resolved home dir is accepted on symlinked-/home systems.
+
+    expanduser('~') may return a path with unresolved symlinks (e.g. /home/pi when
+    /home -> /var/home). Without realpath() on _home, the allowlist comparison fails
+    asymmetrically and all home-directory overrides are silently rejected (#139).
+    """
+    real_home = tmp_path / "real_home"
+    real_home.mkdir()
+    symlinked_home = tmp_path / "home_link"
+    symlinked_home.symlink_to(real_home)
+    clips_dir = real_home / "clips"
+    clips_dir.mkdir()
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(symlinked_home) if p == "~" else real_expanduser(p),
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": str(clips_dir)}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.CLIPS_DIR == str(clips_dir), (
+        "CLIPS_DIR under realpath-resolved home rejected — "
+        "_home must use realpath(expanduser('~')) for consistent comparison"
+    )

@@ -481,6 +481,8 @@ def test_currently_recording_cleared_before_finish_clip(monkeypatch):
     with pytest.raises(KeyboardInterrupt):
         main.main()
 
+    main._cancel_watchdog()  # prevent leaked 9999s timer from firing in later tests (#145)
+
     assert len(flag_at_finish) >= 1, "_finish_clip was never called"
     assert flag_at_finish[0] is False, (
         f"_currently_recording was {flag_at_finish[0]} when _finish_clip() was called "
@@ -525,7 +527,94 @@ def test_currently_recording_reset_on_start_recording_failure(monkeypatch):
     with pytest.raises(KeyboardInterrupt):
         main.main()
 
+    _mock_camera.start_recording.side_effect = None  # prevent leaking to other tests (#145)
+
     assert main._currently_recording is False, (
         "_currently_recording still True after start_recording() failure — "
         "_shutdown() would call _finish_clip() on a session that was never started"
+    )
+
+
+# --- #140: _shutdown_lock must be reentrant (RLock) to avoid double-SIGTERM deadlock ---
+
+
+def test_shutdown_lock_is_reentrant(monkeypatch):
+    """_shutdown_lock must be re-acquirable by the same thread without deadlocking.
+
+    threading.Lock() deadlocks if the same thread tries to acquire it a second
+    time (e.g. second SIGTERM between bytecodes while the first is inside the
+    with block). threading.RLock() allows same-thread reacquisition (#140).
+    """
+    acquired = main._shutdown_lock.acquire(blocking=False)
+    assert acquired, "_shutdown_lock could not be acquired"
+    # RLock: same thread can acquire again without blocking
+    reacquired = main._shutdown_lock.acquire(blocking=False)
+    assert reacquired, (
+        "_shutdown_lock is not reentrant — second acquire by same thread failed; "
+        "use threading.RLock() to prevent double-SIGTERM deadlock"
+    )
+    main._shutdown_lock.release()
+    main._shutdown_lock.release()
+
+
+# --- #141: _split_event must be cleared before split_recording() to prevent infinite retry ---
+
+
+def test_split_event_cleared_before_split_recording_exception(monkeypatch):
+    """_split_event must be cleared before split_recording() is called.
+
+    If split_recording() raises, _arm_watchdog() (the only other caller that
+    clears _split_event) is never reached. Without a pre-clear, _split_event
+    stays set and every subsequent iteration retries — exhausting consecutive_errors
+    and restarting the service (#141).
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    _mock_camera.reset_mock()
+    frame_count = [0]
+    split_calls = [0]
+
+    def fake_get_frame():
+        frame_count[0] += 1
+        if frame_count[0] == 2:
+            main._split_event.set()  # simulate watchdog fire
+        if frame_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    def failing_split(filepath, on_complete=None):
+        split_calls[0] += 1
+        raise IOError("transient disk stall")
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    _mock_camera.split_recording.side_effect = failing_split
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.split_recording.side_effect = None
+
+    # _split_event must be clear after the exception — not set, causing retry on every loop
+    assert not main._split_event.is_set(), (
+        "_split_event still set after split_recording() exception — "
+        "must be cleared before split_recording() to prevent infinite retry"
+    )
+    # split_recording should only have been attempted once (not retried every frame)
+    assert split_calls[0] == 1, (
+        f"split_recording called {split_calls[0]} times — "
+        "stale _split_event caused retry loop"
     )

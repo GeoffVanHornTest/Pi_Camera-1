@@ -90,7 +90,9 @@ def cleanup_old_clips(days: int = 7) -> None:
             if filename.endswith(".h264"):
                 if now - os.path.getmtime(path) > _H264_ORPHAN_AGE_SEC:
                     os.remove(path)
-            elif os.path.getmtime(path) < cutoff:
+            elif filename.endswith((".mp4", ".jpg")) and os.path.getmtime(path) < cutoff:
                 os.remove(path)
-        except FileNotFoundError:
-            pass  # another thread removed the file between the check and the delete
+            # Files with other extensions (notes, lock files, operator-staged files)
+            # are left untouched — only storage.py's own output types are managed.
+        except (FileNotFoundError, PermissionError):
+            pass  # race with another thread, or read-only filesystem after power loss

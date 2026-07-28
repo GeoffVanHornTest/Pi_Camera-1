@@ -30,7 +30,7 @@ _split_event = threading.Event()
 _currently_recording = False
 _MAX_CONSECUTIVE_ERRORS = 10
 _shutdown_called = False
-_shutdown_lock = threading.Lock()
+_shutdown_lock = threading.RLock()
 
 
 def _arm_watchdog():
@@ -159,6 +159,10 @@ def main():
                 if _split_event.is_set():
                     # Watchdog fired — MAX_RECORD_SEC elapsed on a background timer
                     # so this fires even if get_frame() was slow (#23).
+                    # Clear the event immediately so a split_recording() exception does
+                    # not leave it set and cause every subsequent iteration to retry
+                    # until consecutive_errors exhausts (#141).
+                    _split_event.clear()
                     print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
                     free_mb = shutil.disk_usage(config.CLIPS_DIR).free // (1024 * 1024)
                     if free_mb < config.MIN_FREE_DISK_MB:

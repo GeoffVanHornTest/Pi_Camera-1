@@ -126,3 +126,65 @@ def test_save_snapshot_raises_if_imwrite_fails(tmp_path, monkeypatch):
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     with pytest.raises(RuntimeError, match="cv2.imwrite failed"):
         storage.save_snapshot(frame)
+
+
+# --- #143: PermissionError in cleanup must not propagate ---
+
+
+def test_cleanup_permission_error_does_not_raise(tmp_path, monkeypatch):
+    """cleanup_old_clips() must not propagate PermissionError from os.remove().
+
+    A read-only filesystem after unclean SD-card power loss raises PermissionError
+    on every os.remove() call. Previously this propagated into main()'s consecutive-
+    error handler and killed the service after 10 iterations (#143).
+    """
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    old_file = tmp_path / "motion_old.mp4"
+    old_file.write_text("x")
+    old_time = __import__("time").time() - (8 * 86400)
+    __import__("os").utime(str(old_file), (old_time, old_time))
+
+    def raise_permission(path):
+        raise PermissionError(f"read-only filesystem: {path}")
+
+    monkeypatch.setattr(storage.os, "remove", raise_permission)
+    storage.cleanup_old_clips(days=7)  # must not raise
+
+
+# --- #144: cleanup must not delete non-.mp4/.jpg files ---
+
+
+def test_cleanup_preserves_non_output_files(tmp_path, monkeypatch):
+    """cleanup_old_clips() must not delete files that storage.py did not create.
+
+    Only .mp4 clips and .jpg snapshots are managed. Operator notes, lock files,
+    pid files, and any other extension must be left untouched (#144).
+    """
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    old_time = __import__("time").time() - (8 * 86400)
+    for name in ("notes.txt", "camera.pid", "backup.conf", "data.csv"):
+        f = tmp_path / name
+        f.write_text("x")
+        __import__("os").utime(str(f), (old_time, old_time))
+
+    storage.cleanup_old_clips(days=7)
+
+    for name in ("notes.txt", "camera.pid", "backup.conf", "data.csv"):
+        assert (tmp_path / name).exists(), f"{name} was deleted — only .mp4/.jpg should be removed"
+
+
+def test_cleanup_deletes_old_mp4_and_jpg(tmp_path, monkeypatch):
+    """cleanup_old_clips() must delete .mp4 and .jpg files older than the retention period."""
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(tmp_path))
+    old_time = __import__("time").time() - (8 * 86400)
+    old_mp4 = tmp_path / "motion_old.mp4"
+    old_jpg = tmp_path / "snapshot_old.jpg"
+    old_mp4.write_text("x")
+    old_jpg.write_text("x")
+    __import__("os").utime(str(old_mp4), (old_time, old_time))
+    __import__("os").utime(str(old_jpg), (old_time, old_time))
+
+    storage.cleanup_old_clips(days=7)
+
+    assert not old_mp4.exists(), "old .mp4 was not deleted"
+    assert not old_jpg.exists(), "old .jpg was not deleted"

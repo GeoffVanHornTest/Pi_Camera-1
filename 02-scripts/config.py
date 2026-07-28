@@ -202,10 +202,16 @@ if os.path.exists(_OVERRIDES_PATH):
         for _k, _v in _overrides.items():
             if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
                 if _k in ("CLIPS_DIR", "LOG_FILE"):
-                    _abs = os.path.realpath(
+                    _raw = (
                         str(_v) if os.path.isabs(str(_v))
                         else os.path.join(_BASE_DIR, str(_v))
                     )
+                    # Check for symlinks BEFORE realpath() — realpath() resolves all symlink
+                    # components, so islink() on its result is always False (dead code).
+                    # Checking the original input path catches symlinks the operator supplies.
+                    if os.path.islink(_raw):
+                        continue
+                    _abs = os.path.realpath(_raw)
                     # Block entire project tree — one rule covers source dirs, .env, and all
                     # other project files. Specific-subdir blocklists miss new files.
                     if _abs == _BASE_DIR or _abs.startswith(_BASE_DIR + os.sep):
@@ -214,7 +220,9 @@ if os.path.exists(_OVERRIDES_PATH):
                     # A blocklist can never enumerate all dangerous paths (/var, /tmp, /opt,
                     # /proc, system dirs, future additions); an allowlist covers the full class
                     # in one rule and rejects everything outside it by default.
-                    _home = os.path.expanduser("~")
+                    # realpath() _home so the comparison is consistent on systems where /home
+                    # is itself a symlink (e.g. /home -> /var/home).
+                    _home = os.path.realpath(os.path.expanduser("~"))
                     _ok_roots = (_home + os.sep, "/media" + os.sep, "/mnt" + os.sep)
                     if not any(_abs.startswith(r) for r in _ok_roots):
                         continue  # outside all allowed roots — reject
@@ -223,13 +231,23 @@ if os.path.exists(_OVERRIDES_PATH):
                     # dot-dir would silently delete credential and config files older than 7 days.
                     if any(p.startswith(".") for p in _abs.split(os.sep) if p):
                         continue
-                    # Require the path to already exist as a real directory (not a symlink).
-                    # realpath() cannot resolve a non-existent path — it returns the bare string.
-                    # A symlink created at that location after config load would bypass all
-                    # validation. Requiring existence-at-load-time closes the TOCTOU window:
-                    # the GUI must create the directory before writing the override.
-                    if not os.path.isdir(_abs) or os.path.islink(_abs):
-                        continue
+                    # Require the path to already exist.
+                    # realpath() on a non-existent path returns the bare string — a symlink
+                    # created there after config load would bypass all validation.
+                    # Requiring existence at load time closes the TOCTOU window: the GUI must
+                    # create the target before writing the override.
+                    # CLIPS_DIR must be a directory; LOG_FILE must have an existing parent dir
+                    # (the file itself may not exist yet — RotatingFileHandler creates it).
+                    if _k == "CLIPS_DIR":
+                        if not os.path.isdir(_abs):
+                            continue
+                    else:  # LOG_FILE — must be a file path; parent dir must exist
+                        # Reject if _abs is already a directory — RotatingFileHandler would
+                        # raise IsADirectoryError on every write, silently disabling logging.
+                        if os.path.isdir(_abs):
+                            continue
+                        if not os.path.isdir(os.path.dirname(_abs)):
+                            continue
                     _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):
                     continue  # skip non-scalar types — coercion corrupts them (tuple → char seq)
