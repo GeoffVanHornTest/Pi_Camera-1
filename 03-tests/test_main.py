@@ -486,3 +486,46 @@ def test_currently_recording_cleared_before_finish_clip(monkeypatch):
         f"_currently_recording was {flag_at_finish[0]} when _finish_clip() was called "
         "— it must be False to prevent concurrent _finish_clip() call from _shutdown()"
     )
+
+
+# --- #134: _currently_recording must be reset if start_recording() raises ---
+
+
+def test_currently_recording_reset_on_start_recording_failure(monkeypatch):
+    """If camera.start_recording() raises, both recording flags must be reset to False.
+
+    _currently_recording is set True before start_recording() to close the #112
+    SIGTERM race. If start_recording() then raises (hardware error), the flag
+    must be reset — otherwise _shutdown() sees True and calls _finish_clip() on
+    a session that was never started.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    _mock_camera.reset_mock()
+    call_count = [0]
+
+    def fake_get_frame():
+        call_count[0] += 1
+        if call_count[0] > 3:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    _mock_camera.start_recording.side_effect = RuntimeError("hardware fault")
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    assert main._currently_recording is False, (
+        "_currently_recording still True after start_recording() failure — "
+        "_shutdown() would call _finish_clip() on a session that was never started"
+    )

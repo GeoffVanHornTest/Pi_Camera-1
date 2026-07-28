@@ -1,6 +1,17 @@
 [Unit]
 Description=PI Camera motion detection
-After=network.target
+# network-online.target waits for DHCP/routing to be fully established (#136).
+# network.target only signals that interfaces are up — DNS and routes may not
+# be available yet, causing the first Telegram/Dropbox calls to fail silently.
+# Wants (not Requires) so the service still starts in offline/LAN-only deployments.
+After=network-online.target
+Wants=network-online.target
+# Burst limit: 5 failures within 60 s → systemd 'failed' state (#137).
+# Without this, RestartSec=5 keeps restarts below the default 10s burst window
+# and the service restarts indefinitely on permanent failures (deleted .env,
+# missing dependency) with no alerting.
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 # NOTE: During algorithm calibration the deployed /etc/systemd/system/pi-camera.service

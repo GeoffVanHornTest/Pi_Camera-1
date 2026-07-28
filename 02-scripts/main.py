@@ -36,9 +36,10 @@ _shutdown_lock = threading.Lock()
 def _arm_watchdog():
     """Start (or restart) the MAX_RECORD_SEC timer for the current clip."""
     global _watchdog
-    _split_event.clear()
     if _watchdog:
-        _watchdog.cancel()
+        _watchdog.cancel()   # cancel before clear — if the old timer fires between
+    _split_event.clear()     # clear and cancel, the event stays set and triggers a
+                             # spurious split on the next main-loop iteration
     _watchdog = threading.Timer(config.MAX_RECORD_SEC, _split_event.set)
     _watchdog.daemon = True
     _watchdog.start()
@@ -128,10 +129,15 @@ def main():
                     event_log.log("DISK_FULL", f"Only {free_mb} MB free — skipping clip")
                     continue
                 filepath = storage.get_video_path()
-                _currently_recording = True
-                camera.start_recording(filepath)
-                _arm_watchdog()
+                _currently_recording = True   # set before start so SIGTERM sees it (#112)
                 currently_recording = True
+                try:
+                    camera.start_recording(filepath)
+                except Exception:
+                    _currently_recording = False  # reset both flags — session never started
+                    currently_recording = False
+                    raise
+                _arm_watchdog()
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
                 event_log.log("MOTION", f"Recording started → {filepath}")
