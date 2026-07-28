@@ -210,16 +210,18 @@ if os.path.exists(_OVERRIDES_PATH):
                     # other project files. Specific-subdir blocklists miss new files.
                     if _abs == _BASE_DIR or _abs.startswith(_BASE_DIR + os.sep):
                         continue
-                    # Block home directory root — cleanup_old_clips() has no extension filter;
-                    # subdirectories of home (e.g. ~/clips) remain valid override targets.
-                    if _abs == os.path.expanduser("~"):
-                        continue
-                    # Block system directories
-                    _sys_dirs = [
-                        "/etc", "/usr", "/bin", "/sbin", "/lib",
-                        "/proc", "/sys", "/root", "/boot",
-                    ]
-                    if any(_abs == d or _abs.startswith(d + os.sep) for d in _sys_dirs):
+                    # Allowlist: only accept paths under the user's home dir, /media, or /mnt.
+                    # A blocklist can never enumerate all dangerous paths (/var, /tmp, /opt,
+                    # /proc, system dirs, future additions); an allowlist covers the full class
+                    # in one rule and rejects everything outside it by default.
+                    _home = os.path.expanduser("~")
+                    _ok_roots = (_home + os.sep, "/media" + os.sep, "/mnt" + os.sep)
+                    if not any(_abs.startswith(r) for r in _ok_roots):
+                        continue  # outside all allowed roots — reject
+                    # Block hidden directories anywhere in the path (e.g. ~/.ssh, ~/.gnupg,
+                    # ~/.aws). cleanup_old_clips() has no extension filter — pointing it at a
+                    # dot-dir would silently delete credential and config files older than 7 days.
+                    if any(p.startswith(".") for p in _abs.split(os.sep) if p):
                         continue
                     _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):

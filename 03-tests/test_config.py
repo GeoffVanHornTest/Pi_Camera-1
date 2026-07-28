@@ -210,13 +210,60 @@ def test_home_dir_root_clips_dir_rejected(tmp_path, monkeypatch, restore_config)
 
 
 def test_system_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
-    """An absolute CLIPS_DIR override pointing to a system dir is silently ignored."""
+    """Paths outside the allowlist (home/media/mnt) are silently ignored.
+
+    /var/log is representative of the full class — /tmp, /opt, /proc, /etc,
+    and any other path not under ~/…, /media/…, or /mnt/… are all rejected
+    by the allowlist check without needing to enumerate them individually.
+    """
     overrides = tmp_path / "overrides.json"
-    overrides.write_text(json.dumps({"CLIPS_DIR": "/etc/cron.d"}))
+    overrides.write_text(json.dumps({"CLIPS_DIR": "/var/log"}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     original = config.CLIPS_DIR
     importlib.reload(config)
     assert config.CLIPS_DIR == original
+
+
+def test_home_hidden_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """CLIPS_DIR pointing at a hidden home subdirectory is rejected.
+
+    cleanup_old_clips() has no extension filter — ~/.ssh as CLIPS_DIR would
+    delete all SSH keys older than 7 days. The hidden-component check catches
+    ~/.ssh, ~/.gnupg, ~/.aws, ~/.config, and any future dot-dirs.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": os.path.expanduser("~/.ssh")}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
+
+
+def test_media_path_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
+    """A CLIPS_DIR under /media (external drive) is accepted.
+
+    /media is a primary legitimate target for Pi camera storage — external
+    USB drives and SD cards mount there. The allowlist must admit it.
+    """
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": "/media/pi/usb0/clips"}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.CLIPS_DIR == "/media/pi/usb0/clips"
+
+
+def test_home_subdir_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
+    """A plain (non-hidden) home subdirectory is accepted.
+
+    ~/clips is the simplest legitimate target — must pass both the allowlist
+    and the hidden-component check.
+    """
+    target = os.path.join(os.path.expanduser("~"), "pi_camera_clips")
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": target}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.CLIPS_DIR == target
 
 
 def test_overflow_int_override_not_applied(tmp_path, monkeypatch, restore_config):

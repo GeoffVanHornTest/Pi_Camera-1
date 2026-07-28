@@ -29,6 +29,8 @@ _watchdog = None
 _split_event = threading.Event()
 _currently_recording = False
 _MAX_CONSECUTIVE_ERRORS = 10
+_shutdown_called = False
+_shutdown_lock = threading.Lock()
 
 
 def _arm_watchdog():
@@ -200,6 +202,11 @@ def main():
 
 def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
+    global _shutdown_called
+    with _shutdown_lock:
+        if _shutdown_called:
+            return  # second SIGTERM mid-shutdown — already shutting down
+        _shutdown_called = True
     # Hard deadline: if graceful shutdown stalls (camera driver lockup, infinite
     # ffmpeg hang), force exit so SIGTERM always terminates (#108/#126).
     # 300 s is larger than the maximum legitimate shutdown work:
