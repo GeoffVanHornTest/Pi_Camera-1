@@ -127,7 +127,14 @@ def main():
                 return
 
             if time.time() - last_cleanup > 86400:
-                storage.cleanup_old_clips(days=7)
+                try:
+                    storage.cleanup_old_clips(days=7)
+                except Exception as e:
+                    # Cleanup failure (e.g. CLIPS_DIR replaced by symlink, #147) is
+                    # logged and skipped — not counted against consecutive_errors.
+                    # last_cleanup is always updated so a permanent failure doesn't
+                    # retry every iteration and exhaust the error budget.
+                    event_log.log("ERROR", f"cleanup skipped: {e}")
                 last_cleanup = time.time()
 
             frame = camera.get_frame()

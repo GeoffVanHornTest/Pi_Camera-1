@@ -188,3 +188,44 @@ def test_cleanup_deletes_old_mp4_and_jpg(tmp_path, monkeypatch):
 
     assert not old_mp4.exists(), "old .mp4 was not deleted"
     assert not old_jpg.exists(), "old .jpg was not deleted"
+
+
+# --- #147: TOCTOU — cleanup must re-validate CLIPS_DIR before file operations ---
+
+
+def test_cleanup_raises_if_clips_dir_no_longer_exists(tmp_path, monkeypatch):
+    """cleanup_old_clips() must raise RuntimeError if CLIPS_DIR has been removed.
+
+    The directory is validated at config-load time but the filesystem can change
+    while the service is running. Re-checking before each cleanup prevents file
+    operations on a path that no longer exists as a real directory (#147).
+    """
+    vanished = tmp_path / "vanished_clips"
+    vanished.mkdir()
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(vanished))
+    vanished.rmdir()  # simulate directory disappearing after config loaded
+
+    with pytest.raises(RuntimeError, match="no longer exists"):
+        storage.cleanup_old_clips(days=7)
+
+
+def test_cleanup_raises_if_clips_dir_replaced_by_symlink(tmp_path, monkeypatch):
+    """cleanup_old_clips() must raise RuntimeError if CLIPS_DIR is now a symlink.
+
+    An attacker with local write access could replace the validated directory with
+    a symlink (e.g. ln -s ~/.ssh /home/pi/safe_clips) after config loads. Without
+    re-validation, cleanup's os.remove() would delete files from the symlink target.
+    config.CLIPS_DIR is stored as a realpath() result; if realpath() now differs,
+    the path has been replaced (#147).
+    """
+    real_dir = tmp_path / "real_clips"
+    real_dir.mkdir()
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    monkeypatch.setattr(storage.config, "CLIPS_DIR", str(clips_dir))
+    # Replace the real directory with a symlink after config "loaded"
+    clips_dir.rmdir()
+    clips_dir.symlink_to(real_dir)
+
+    with pytest.raises(RuntimeError, match="replaced by a symlink"):
+        storage.cleanup_old_clips(days=7)

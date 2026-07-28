@@ -68,6 +68,24 @@ def save_snapshot(frame: np.ndarray) -> str:
 _H264_ORPHAN_AGE_SEC = 300  # 5 min — long enough to never touch an in-flight conversion
 
 
+def _validate_clips_dir() -> None:
+    """Raise RuntimeError if CLIPS_DIR has been replaced or removed since startup.
+
+    config.CLIPS_DIR is validated as a real (non-symlink) directory at load time,
+    but the filesystem can change while the service is running. A symlink created
+    at that path after startup would redirect cleanup's os.remove() calls to the
+    symlink target. Re-checking before each destructive operation closes the
+    post-load TOCTOU window (#147).
+    """
+    path = config.CLIPS_DIR
+    if not os.path.isdir(path):
+        raise RuntimeError(f"CLIPS_DIR {path!r} no longer exists — skipping")
+    if os.path.realpath(path) != path:
+        raise RuntimeError(
+            f"CLIPS_DIR {path!r} has been replaced by a symlink since startup — skipping"
+        )
+
+
 def cleanup_old_clips(days: int = 7) -> None:
     """Delete clips and snapshots older than the given number of days.
 
@@ -80,6 +98,7 @@ def cleanup_old_clips(days: int = 7) -> None:
     Args:
         days: Files older than this many days are removed. Defaults to 7.
     """
+    _validate_clips_dir()
     now = time.time()
     cutoff = now - (days * 86400)
     for filename in os.listdir(config.CLIPS_DIR):

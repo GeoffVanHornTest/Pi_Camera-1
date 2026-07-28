@@ -633,3 +633,48 @@ def test_split_event_cleared_before_split_recording_exception(monkeypatch):
         f"split_recording called {split_calls[0]} times — "
         "stale _split_event caused retry loop"
     )
+
+
+# --- #147: cleanup errors must not count against consecutive_errors ---
+
+
+def test_cleanup_error_does_not_kill_service(monkeypatch):
+    """A RuntimeError from cleanup_old_clips() must not increment consecutive_errors.
+
+    If CLIPS_DIR is replaced by a symlink after startup, _validate_clips_dir()
+    raises RuntimeError. Without isolation, this increments consecutive_errors and
+    kills the service after 10 iterations. The fix wraps cleanup in its own
+    try/except and always updates last_cleanup (#147).
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    cleanup_calls = [0]
+
+    def failing_cleanup(days=7):
+        cleanup_calls[0] += 1
+        raise RuntimeError("CLIPS_DIR has been replaced by a symlink")
+
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", failing_cleanup)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 3:
+            raise KeyboardInterrupt
+        return (False, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    # Must raise KeyboardInterrupt (normal exit), NOT RuntimeError (consecutive errors)
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    assert cleanup_calls[0] == 1, (
+        "cleanup_old_clips called more than once — last_cleanup not updated after failure"
+    )
