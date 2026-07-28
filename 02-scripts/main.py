@@ -161,9 +161,9 @@ def main():
                             f"Only {free_mb} MB free — stopping instead of splitting",
                         )
                         filepath = None
-                        _finish_clip()
                         currently_recording = False
-                        _currently_recording = False
+                        _currently_recording = False  # clear before _finish_clip so _shutdown()
+                        _finish_clip()               # does not see a concurrent recording
                     else:
                         filepath = storage.get_video_path()
                         event_log.log("SPLIT", f"Clip split → {filepath}")
@@ -175,9 +175,9 @@ def main():
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     event_log.log("STOP", "Recording stopped")
                     filepath = None
-                    _finish_clip()
                     currently_recording = False
-                    _currently_recording = False
+                    _currently_recording = False  # clear before _finish_clip so _shutdown()
+                    _finish_clip()               # does not see a concurrent recording
 
         except (KeyboardInterrupt, SystemExit):
             raise

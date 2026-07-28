@@ -427,3 +427,62 @@ def test_shutdown_not_reentrant(monkeypatch):
         f"stop_recording called {_mock_camera.stop_recording.call_count} times "
         f"(expected {first_stop_count}) — reentrancy guard not working"
     )
+
+
+# --- #131: _currently_recording must be cleared before _finish_clip() in main loop ---
+
+
+def test_currently_recording_cleared_before_finish_clip(monkeypatch):
+    """_currently_recording must be False at the moment _finish_clip() is called
+    from the main loop's POST_MOTION_BUFFER_SEC stop branch.
+
+    If it were still True, a SIGTERM arriving mid-_finish_clip() would cause
+    _shutdown() to call _finish_clip() a second time concurrently.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 0)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    # Capture _currently_recording at the exact moment _finish_clip() is called.
+    flag_at_finish = []
+
+    def capturing_finish():
+        flag_at_finish.append(main._currently_recording)
+
+    monkeypatch.setattr(main, "_finish_clip", capturing_finish)
+    _mock_camera.reset_mock()
+
+    call_count = [0]
+
+    def fake_get_frame():
+        call_count[0] += 1
+        if call_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    def fake_detect(frame):
+        # Motion on frame 1 only; subsequent frames have no motion so
+        # POST_MOTION_BUFFER_SEC=0 fires on frame 2.
+        return (call_count[0] == 1, frame)
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    assert len(flag_at_finish) >= 1, "_finish_clip was never called"
+    assert flag_at_finish[0] is False, (
+        f"_currently_recording was {flag_at_finish[0]} when _finish_clip() was called "
+        "— it must be False to prevent concurrent _finish_clip() call from _shutdown()"
+    )

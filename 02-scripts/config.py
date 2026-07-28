@@ -134,7 +134,7 @@ VIDEO_BITRATE_BPS = 2_500_000
 # project root regardless of which directory the script is run from.
 POST_MOTION_BUFFER_SEC = 20
 MAX_RECORD_SEC = 120
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
 
 # --- Logging ---
@@ -222,6 +222,13 @@ if os.path.exists(_OVERRIDES_PATH):
                     # ~/.aws). cleanup_old_clips() has no extension filter — pointing it at a
                     # dot-dir would silently delete credential and config files older than 7 days.
                     if any(p.startswith(".") for p in _abs.split(os.sep) if p):
+                        continue
+                    # Require the path to already exist as a real directory (not a symlink).
+                    # realpath() cannot resolve a non-existent path — it returns the bare string.
+                    # A symlink created at that location after config load would bypass all
+                    # validation. Requiring existence-at-load-time closes the TOCTOU window:
+                    # the GUI must create the directory before writing the override.
+                    if not os.path.isdir(_abs) or os.path.islink(_abs):
                         continue
                     _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):

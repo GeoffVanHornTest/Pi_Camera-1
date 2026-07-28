@@ -240,30 +240,62 @@ def test_home_hidden_dir_clips_dir_rejected(tmp_path, monkeypatch, restore_confi
 
 
 def test_media_path_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
-    """A CLIPS_DIR under /media (external drive) is accepted.
+    """A CLIPS_DIR under /media (external drive) is accepted when the directory exists.
 
     /media is a primary legitimate target for Pi camera storage — external
-    USB drives and SD cards mount there. The allowlist must admit it.
+    USB drives and SD cards mount there. The existence guard must not block it.
+    isdir/islink are monkeypatched to simulate a mounted USB drive without
+    requiring physical hardware.
     """
-    overrides = tmp_path / "overrides.json"
-    overrides.write_text(json.dumps({"CLIPS_DIR": "/media/pi/usb0/clips"}))
-    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
-    importlib.reload(config)
-    assert config.CLIPS_DIR == "/media/pi/usb0/clips"
-
-
-def test_home_subdir_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
-    """A plain (non-hidden) home subdirectory is accepted.
-
-    ~/clips is the simplest legitimate target — must pass both the allowlist
-    and the hidden-component check.
-    """
-    target = os.path.join(os.path.expanduser("~"), "pi_camera_clips")
+    target = "/media/pi/usb0/clips"
+    real_isdir = os.path.isdir
+    real_islink = os.path.islink
+    monkeypatch.setattr(os.path, "isdir", lambda p: True if p == target else real_isdir(p))
+    monkeypatch.setattr(os.path, "islink", lambda p: False if p == target else real_islink(p))
     overrides = tmp_path / "overrides.json"
     overrides.write_text(json.dumps({"CLIPS_DIR": target}))
     monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
     importlib.reload(config)
     assert config.CLIPS_DIR == target
+
+
+def test_home_subdir_clips_dir_accepted(tmp_path, monkeypatch, restore_config):
+    """A plain (non-hidden) home subdirectory that exists is accepted.
+
+    ~/clips is the simplest legitimate target — must pass the allowlist,
+    the hidden-component check, and the new existence guard (TOCTOU fix).
+    tmp_path is used as the mock home directory so the test is hermetic.
+    """
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    real_expanduser = os.path.expanduser
+    monkeypatch.setattr(
+        os.path, "expanduser",
+        lambda p: str(tmp_path) if p == "~" else real_expanduser(p),
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": str(clips_dir)}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    importlib.reload(config)
+    assert config.CLIPS_DIR == str(clips_dir)
+
+
+def test_nonexistent_clips_dir_rejected(tmp_path, monkeypatch, restore_config):
+    """A CLIPS_DIR path that does not exist on disk is rejected (TOCTOU guard).
+
+    realpath() cannot resolve a non-existent path — it returns the bare string.
+    A symlink created at that location after config load would bypass all
+    validation. Requiring existence at load time closes the TOCTOU window:
+    the GUI must create the directory before writing the override.
+    """
+    target = os.path.join(os.path.expanduser("~"), "nonexistent_clips_xyz_toctou")
+    assert not os.path.exists(target), "test precondition: path must not exist"
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(json.dumps({"CLIPS_DIR": target}))
+    monkeypatch.setenv("_PI_CAMERA_OVERRIDES_PATH", str(overrides))
+    original = config.CLIPS_DIR
+    importlib.reload(config)
+    assert config.CLIPS_DIR == original
 
 
 def test_overflow_int_override_not_applied(tmp_path, monkeypatch, restore_config):
