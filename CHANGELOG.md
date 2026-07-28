@@ -138,6 +138,18 @@ All notable changes to PI Camera are documented here.
 - **TOCTOU, abspath/realpath, and double-_finish_clip tests (#131, #132, #133)** — `test_nonexistent_clips_dir_rejected` (non-existent path rejected by existence guard); updated `test_media_path_clips_dir_accepted` (monkeypatches `isdir`/`islink` to simulate mounted USB); updated `test_home_subdir_clips_dir_accepted` (uses `tmp_path` as mock home root via patched `expanduser`); `test_currently_recording_cleared_before_finish_clip` (drives main loop to POST_MOTION_BUFFER_SEC stop, captures `_currently_recording` inside `_finish_clip` stub, asserts False). Total test count: 127.
 - **Recording state reset and start-failure tests (#134)** — `test_currently_recording_reset_on_start_recording_failure` (monkeypatches `start_recording` to raise, asserts `_currently_recording is False` after exception propagates). Total test count: 128.
 
+- **Path guard, shutdown, cleanup, and test isolation hardening (#138–#145)** — nine new regression tests across `test_config.py`, `test_main.py`, `test_storage.py`:
+  - `test_symlink_clips_dir_rejected` — symlink input path rejected before `realpath()` (#138)
+  - `test_log_file_valid_path_accepted` — valid file-path LOG_FILE override now accepted (#138)
+  - `test_log_file_directory_path_rejected` — directory path as LOG_FILE still rejected (#138)
+  - `test_home_symlink_clips_dir_accepted` — realpath()-normalized `_home` accepts clips under realpath-resolved home on symlinked-`/home` systems (#139)
+  - `test_shutdown_lock_is_reentrant` — same-thread double-acquire of `_shutdown_lock` succeeds (RLock), confirming no double-SIGTERM deadlock (#140)
+  - `test_split_event_cleared_before_split_recording_exception` — `_split_event` is clear after `split_recording()` exception, so no infinite retry (#141)
+  - `test_cleanup_permission_error_does_not_raise` — `PermissionError` from `os.remove()` is caught, not propagated (#143)
+  - `test_cleanup_preserves_non_output_files` — non-.mp4/.jpg files (notes, pid, conf) are not deleted (#144)
+  - `test_cleanup_deletes_old_mp4_and_jpg` — old .mp4 and .jpg files are still deleted after extension filter added (#144)
+  Total test count: 137.
+
 ---
 
 ## [0.4.2] - 2026-07-19
