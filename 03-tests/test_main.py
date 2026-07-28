@@ -535,26 +535,41 @@ def test_currently_recording_reset_on_start_recording_failure(monkeypatch):
     )
 
 
-# --- #140: _shutdown_lock must be reentrant (RLock) to avoid double-SIGTERM deadlock ---
+# --- #146: SIGTERM flag causes main() to return cleanly between iterations ---
 
 
-def test_shutdown_lock_is_reentrant(monkeypatch):
-    """_shutdown_lock must be re-acquirable by the same thread without deadlocking.
+def test_sigterm_flag_exits_main_loop(monkeypatch):
+    """Setting _sigterm_received=True must cause main() to return without calling
+    _finish_clip() or touching recording state mid-transition.
 
-    threading.Lock() deadlocks if the same thread tries to acquire it a second
-    time (e.g. second SIGTERM between bytecodes while the first is inside the
-    with block). threading.RLock() allows same-thread reacquisition (#140).
+    The signal handler sets only a flag; _shutdown() is called by the outer
+    __main__ handler after main() returns at a known-safe iteration boundary.
+    This eliminates all signal-handler bytecode races (#146).
     """
-    acquired = main._shutdown_lock.acquire(blocking=False)
-    assert acquired, "_shutdown_lock could not be acquired"
-    # RLock: same thread can acquire again without blocking
-    reacquired = main._shutdown_lock.acquire(blocking=False)
-    assert reacquired, (
-        "_shutdown_lock is not reentrant — second acquire by same thread failed; "
-        "use threading.RLock() to prevent double-SIGTERM deadlock"
-    )
-    main._shutdown_lock.release()
-    main._shutdown_lock.release()
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            # Simulate SIGTERM arriving mid-loop — sets flag only, does not call _shutdown()
+            monkeypatch.setattr(main, "_sigterm_received", True)
+        return (False, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+    monkeypatch.setattr(main, "_sigterm_received", False)
+
+    main.main()  # must return normally, not raise
+
+    # main() must have returned, not called _finish_clip()
+    _mock_camera.stop_recording.assert_not_called()
+    monkeypatch.setattr(main, "_sigterm_received", False)
 
 
 # --- #141: _split_event must be cleared before split_recording() to prevent infinite retry ---

@@ -30,7 +30,18 @@ _split_event = threading.Event()
 _currently_recording = False
 _MAX_CONSECUTIVE_ERRORS = 10
 _shutdown_called = False
-_shutdown_lock = threading.RLock()
+_sigterm_received = False
+
+
+def _sigterm_handler(*_):
+    """Mark SIGTERM received; main loop exits cleanly at the next iteration boundary.
+
+    Setting a flag rather than calling _shutdown() directly eliminates all signal-
+    handler bytecode races (#146): _shutdown() only ever runs from the outer __main__
+    handler, after main() returns at a known-safe point between iterations.
+    """
+    global _sigterm_received
+    _sigterm_received = True
 
 
 def _arm_watchdog():
@@ -110,6 +121,11 @@ def main():
 
     while True:
         try:
+            # Check SIGTERM flag at a known-safe point — between full iterations,
+            # never mid-state-transition. _shutdown() is called by the outer handler.
+            if _sigterm_received:
+                return
+
             if time.time() - last_cleanup > 86400:
                 storage.cleanup_old_clips(days=7)
                 last_cleanup = time.time()
@@ -213,10 +229,9 @@ def main():
 def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     global _shutdown_called
-    with _shutdown_lock:
-        if _shutdown_called:
-            return  # second SIGTERM mid-shutdown — already shutting down
-        _shutdown_called = True
+    if _shutdown_called:
+        return  # guard against KeyboardInterrupt arriving inside _shutdown() itself
+    _shutdown_called = True
     # Hard deadline: if graceful shutdown stalls (camera driver lockup, infinite
     # ffmpeg hang), force exit so SIGTERM always terminates (#108/#126).
     # 300 s is larger than the maximum legitimate shutdown work:
@@ -247,10 +262,12 @@ def _shutdown(reason: str = "requested") -> None:
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, lambda *_: _shutdown("SIGTERM received"))
+    signal.signal(signal.SIGTERM, _sigterm_handler)
     try:
         main()
     except KeyboardInterrupt:
         _shutdown("KeyboardInterrupt")
     except Exception:
         _shutdown("Fatal error — restarting")
+    else:
+        _shutdown("SIGTERM received")  # main() returned because _sigterm_received=True
