@@ -5,22 +5,22 @@ Use it to resume work on a new machine or after a long break.
 
 ---
 
-## Current state (2026-07-27)
+## Current state (2026-07-28)
 
 **Branch:** `feature/night-detection` — motion detection reliability overhaul driven by overnight and morning field data. Seven areas of work:
 1. **Brightness measurement fix (#60)** — day/night threshold selection now uses true grayscale luminance instead of the Blue channel, which IR/red illuminators inflate 5–7×. 13/19 overnight clips had the wrong threshold applied under the old code.
 2. **Scene-change gate — two-filter architecture (#96, #97, #98, #100, #104, #105, closes #19)** — Stage A instant-step pre-filter catches single-frame AGC jumps ≥ 8.0 gray units; Stage B rolling-window gate catches sustained drifts ≥ 15.0 units over 5 s. Gate brightness computed from background pixels only so a bright foreground subject cannot arm the gate against itself. Suppress timer extends through the transition and expires `SCENE_CHANGE_SUPPRESS_SEC` after the scene stabilises. Root-caused from 10 false positives in 40 minutes (2026-07-22, 07:48–08:28); field-verified 2026-07-26: 17 HUMAN, 3 LIGHTING, 4 other in 24 clips.
 3. **Persistent event log (#93)** — rotating file handler in `05-logs/pi_camera.log` records STARTUP, SHUTDOWN, MOTION, SPLIT, STOP, TELEGRAM, UPLOAD, SCENE_CHANGE, DISK_FULL, SNAPSHOT_FAIL, and FATAL events for post-hoc troubleshooting.
-4. **Config override layer (#99, #102, #110, #119, #121–#125, #128)** — `config_overrides.json` allows runtime parameter changes without editing `config.py`. Credential keys blocked. Type coercion, zero/negative guard, non-dict protection, OverflowError guard, math.isfinite() guard for float constants (NaN/±Infinity rejection), and allowlist path guard for CLIPS_DIR/LOG_FILE: only `~/`, `/media/`, `/mnt/` roots accepted; hidden directory components (`.ssh`, `.gnupg`, `.aws`) blocked. Replaces three generations of blocklist iteration — the allowlist closes the full class, not just enumerated examples.
-5. **Operational reliability fixes** — low-disk guard before recording and in watchdog split path (#107, #127); send_photo resize + backoff + thumbnail-path fix (#106, #113); Telegram API error redaction in event log (#101); SIGTERM shutdown deadline 300 s + `TimeoutStopSec=330` in service file to outlast legitimate work (#108, #111, #112, #126, #129); SIGTERM race fixed (#112); `_shutdown()` reentrancy guard added — second SIGTERM returns immediately without re-entering `_finish_clip()` (#130).
-6. **Test hardening (#94, #95, #102, #107, #110, #115, #117, #121–#130)** — session-scoped conftest isolation; regression tests for day/night fix, override layer, disk guard, background-pixel gate, Stage A filter, path containment, NaN/Infinity coercion, shutdown deadline value, watchdog disk-full path, allowlist path guard (including positive acceptance tests), and shutdown reentrancy.
+4. **Config override layer (#99, #102, #110, #119, #121–#125, #128, #131–#133)** — `config_overrides.json` allows runtime parameter changes without editing `config.py`. Credential keys blocked. Type coercion, zero/negative guard, non-dict protection, OverflowError guard, math.isfinite() guard for float constants (NaN/±Infinity rejection), and allowlist path guard for CLIPS_DIR/LOG_FILE: only `~/`, `/media/`, `/mnt/` roots accepted; hidden directory components (`.ssh`, `.gnupg`, `.aws`) blocked; target directory must exist as a real (non-symlink) directory at config load time (TOCTOU guard); `_BASE_DIR` computed with `realpath` so symlinked project deployments are correctly blocked.
+5. **Operational reliability fixes** — low-disk guard before recording and in watchdog split path (#107, #127); send_photo resize + backoff + thumbnail-path fix (#106, #113); Telegram API error redaction in event log (#101); SIGTERM shutdown deadline 300 s + `TimeoutStopSec=330` in service file to outlast legitimate work (#108, #111, #112, #126, #129); SIGTERM race fixed (#112); `_shutdown()` reentrancy guard (#130); `_finish_clip()` double-call race closed — flags cleared before call (#131); recording flags reset if `start_recording()` raises (#134); `_arm_watchdog()` cancel-before-clear order corrected (#135); `After=network-online.target` + burst limit added to service file (#136, #137).
+6. **Test hardening (#94, #95, #102, #107, #110, #115, #117, #121–#137)** — session-scoped conftest isolation; regression tests for day/night fix, override layer, disk guard, background-pixel gate, Stage A filter, path containment, NaN/Infinity coercion, shutdown deadline value, watchdog disk-full path, allowlist path guard (positive and negative), TOCTOU existence guard, shutdown reentrancy, double-_finish_clip race, and start_recording failure recovery.
 7. **Documentation and code quality** — suppress-window behaviour clarified as "SUPPRESS_SEC after scene stabilises" (#98); ruff CI green (#109); CHANGELOG and PROGRESS updated (#116).
 
 PR targeting `dev`. Issues resolved manually — GitHub auto-close requires PRing to the default branch (`main`).
 
 **Notification backend:** Telegram + Dropbox. Gmail (`notifier.py`) removed in v0.4.0 housekeeping.
 
-**Tests:** 125 passing, 2 xfailed (known limitations #114, #120). Covers `config`, `storage`,
+**Tests:** 128 passing, 2 xfailed (known limitations #114, #120). Covers `config`, `storage`,
 `motion_detector`, `telegram_notifier`, `dropbox_uploader`, `main`, `event_log`.
 `camera.py` excluded (hardware-dependent).
 
@@ -46,7 +46,7 @@ Re-enable after algorithm is finalised (see Pi Hardware Setup Checklist).
 
 **Issues resolved on this branch** (all manually closed):
 
-#19, #60, #93, #94, #95, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112, #113, #115, #116, #117, #118, #119, #121, #122, #123, #124, #125, #126, #127, #128, #129, #130
+#19, #60, #93, #94, #95, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112, #113, #115, #116, #117, #118, #119, #121, #122, #123, #124, #125, #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137
 
 **Data collected (issue #28):**
 
@@ -189,7 +189,7 @@ PI_Camera/
 │   ├── verify_timing.py     # Post-run validation: pre-roll and MP4 validity
 │   ├── run_test.sh          # Stop-after-N-clips field test helper
 │   └── analyze_*.py         # 9-script false trigger diagnostic suite
-├── 03-tests/                # pytest unit tests (125 passing, 2 xfailed)
+├── 03-tests/                # pytest unit tests (128 passing, 2 xfailed)
 ├── 04-docs/                 # MkDocs source → GitHub Pages
 ├── .github/workflows/ci.yml # Lint + test on push/PR
 ├── 00-clips/                # Recorded clips and snapshots (gitignored)
