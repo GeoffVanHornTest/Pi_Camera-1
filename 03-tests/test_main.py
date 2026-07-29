@@ -695,8 +695,12 @@ def test_consecutive_errors_accumulates_on_recording_failure(monkeypatch):
     should increment consecutive_errors on every iteration so the 10-error restart guard
     eventually fires and restarts the service to re-initialize hardware.
     """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
     monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 0.1)
     monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
 
     # Motion detected, but start_recording fails on every iteration
     call_count = [0]
@@ -734,8 +738,12 @@ def test_split_recording_failure_rearms_watchdog(monkeypatch):
     the clip doesn't grow indefinitely. The exception should propagate to the outer
     handler (incrementing consecutive_errors), not kill the watchdog.
     """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
     monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 0.1)
     monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 5)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
 
     watchdog_arms = [0]
     original_arm = main._arm_watchdog
