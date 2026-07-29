@@ -4,24 +4,54 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
+import config
+import cv2
 import motion_detector
 import numpy as np
+import pytest
+
+# Frame shape must match production resolution so MOTION_THRESHOLD contour-area
+# values are evaluated against the same pixel counts as the real camera.
+_W, _H = config.RESOLUTION  # RESOLUTION is (width, height)
+_SHAPE = (_H, _W, 3)        # numpy uses (height, width, channels)
+
+
+@pytest.fixture(autouse=True)
+def fresh_motion_detector():
+    """Replace the shared MOG2 model with a new instance before each test.
+
+    The background subtractor is a module-level singleton — state accumulated
+    in one test (warm-up frames, white frames) would otherwise bleed into the
+    next and make test results depend on execution order.
+    """
+    motion_detector._bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+        detectShadows=False
+    )
+    motion_detector.reset_motion_state()
+    motion_detector._scene_suppress_until = 0.0
+    motion_detector._last_gate_brightness = -1.0
 
 
 def static_frame():
-    return np.zeros((1080, 1920, 3), dtype=np.uint8)
+    return np.zeros(_SHAPE, dtype=np.uint8)
 
 
 def white_frame():
     """Solid white frame — maximally different from a black background model."""
-    return np.full((1080, 1920, 3), 255, dtype=np.uint8)
+    return np.full(_SHAPE, 255, dtype=np.uint8)
 
 
 def _warm_up():
-    """Feed 30 static frames so MOG2 settles its background model."""
+    """Feed 30 static frames so MOG2 settles its background model.
+
+    Resets _last_gate_brightness to -1.0 (no-prior-frame sentinel) so
+    Stage A does not fire on the first motion frame in tests that are
+    testing the consecutive-frame gate rather than the brightness gate.
+    """
     for _ in range(30):
         motion_detector.detect(static_frame())
     motion_detector.reset_motion_state()
+    motion_detector._last_gate_brightness = -1.0
 
 
 # --- Return-type tests ---
@@ -62,8 +92,6 @@ def test_static_frame_does_not_trigger_motion():
 
 def test_motion_requires_min_consecutive_frames():
     """detect() must return False until MIN_CONSECUTIVE_FRAMES have passed."""
-    import config
-
     _warm_up()
     results = []
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -77,8 +105,6 @@ def test_motion_requires_min_consecutive_frames():
 
 def test_motion_returns_true_on_sustained_motion():
     """Once the gate is open, subsequent motion frames keep returning True."""
-    import config
-
     _warm_up()
     # Open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -92,8 +118,6 @@ def test_motion_returns_true_on_sustained_motion():
 
 def test_consecutive_counter_resets_on_no_motion():
     """A static frame between motion frames must reset the consecutive counter."""
-    import config
-
     _warm_up()
     # Partial run — not enough to open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES - 1):
@@ -110,8 +134,6 @@ def test_consecutive_counter_resets_on_no_motion():
 
 def test_reset_motion_state_clears_consecutive_counter():
     """reset_motion_state() must reset the counter so the gate closes again."""
-    import config
-
     _warm_up()
     # Open the gate
     for _ in range(config.MIN_CONSECUTIVE_FRAMES):
@@ -135,9 +157,268 @@ def test_new_event_allowed_blocks_rapid_retriggering(monkeypatch):
 
 def test_new_event_allowed_fires_after_cooldown(monkeypatch):
     """new_event_allowed() must return True once MOTION_COOLDOWN_SEC has elapsed."""
-    import config
-
     monkeypatch.setattr(
         motion_detector, "_last_motion", time.time() - config.MOTION_COOLDOWN_SEC - 1
     )
     assert motion_detector.new_event_allowed() is True
+
+
+# --- Day/night brightness threshold tests (regression for #60) ---
+
+
+def colored_frame(bgr_value):
+    """Solid frame filled with a specific BGR color."""
+    return np.full(_SHAPE, bgr_value, dtype=np.uint8)
+
+
+def _warm_up_on(base_frame, n=30):
+    """Feed n copies of base_frame to settle the MOG2 background model."""
+    for _ in range(n):
+        motion_detector.detect(base_frame)
+    motion_detector.reset_motion_state()
+    motion_detector._scene_suppress_until = 0.0
+    motion_detector._last_gate_brightness = float(
+        cv2.mean(cv2.cvtColor(base_frame, cv2.COLOR_BGR2GRAY))[0]
+    )
+
+
+def frame_with_blob(bg_bgr, blob_bgr, blob_size=200):
+    """Frame filled with bg_bgr containing a blob_size×blob_size region of blob_bgr."""
+    frame = np.full(_SHAPE, bg_bgr, dtype=np.uint8)
+    frame[100:100 + blob_size, 100:100 + blob_size] = blob_bgr
+    return frame
+
+
+def test_ir_like_frame_uses_night_threshold(monkeypatch):
+    """High-Blue / low-grayscale frame must select MOTION_THRESHOLD_NIGHT.
+
+    Regression for #60: cv2.mean(frame)[0] returns the Blue channel mean.
+    On an IR-illuminated frame Blue≈120 > BRIGHTNESS_THRESHOLD(60), so the
+    old code selected DAY — causing false detections in the dark.
+    After the fix, grayscale≈14 correctly selects NIGHT.
+
+    With MOTION_THRESHOLD_DAY=1 and MOTION_THRESHOLD_NIGHT=100_000:
+    - Correct code:   grayscale≈24 < 60 → NIGHT=100k → blob(40k) < 100k → False
+    - Old buggy code: Blue≈126     > 60 → DAY=1      → blob(40k) > 1    → True
+    """
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_DAY", 1)
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_NIGHT", 100_000)
+
+    ir_bg = [120, 0, 0]  # Blue=120 > 60; grayscale ≈ 14 < 60
+    _warm_up_on(colored_frame(ir_bg))
+
+    motion, _ = motion_detector.detect(frame_with_blob(ir_bg, [255, 255, 255]))
+    assert motion is False
+
+
+def test_bright_non_blue_frame_uses_day_threshold(monkeypatch):
+    """Low-Blue / high-grayscale frame must select MOTION_THRESHOLD_DAY.
+
+    Regression for #60: cv2.mean(frame)[0] returns Blue≈0 for a green frame,
+    selecting NIGHT — causing missed detections in bright non-blue light.
+    After the fix, grayscale≈117 correctly selects DAY.
+
+    With MOTION_THRESHOLD_DAY=1 and MOTION_THRESHOLD_NIGHT=100_000:
+    - Correct code:   grayscale≈123 > 60 → DAY=1      → blob(40k) > 1    → True
+    - Old buggy code: Blue≈11       < 60 → NIGHT=100k → blob(40k) < 100k → False
+    """
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_DAY", 1)
+    monkeypatch.setattr(config, "MOTION_THRESHOLD_NIGHT", 100_000)
+
+    green_bg = [0, 200, 0]  # Blue=0 < 60; grayscale ≈ 117 > 60
+    _warm_up_on(colored_frame(green_bg))
+
+    motion_frame = frame_with_blob(green_bg, [255, 255, 255])
+    for _ in range(config.MIN_CONSECUTIVE_FRAMES):
+        motion, _ = motion_detector.detect(motion_frame)
+    assert motion is True
+
+
+# --- Scene-change gate tests (regression for #96) ---
+
+
+def _fill_brightness_history(gray_value: float, n: int | None = None) -> None:
+    """Pre-load the brightness history deque with n copies of gray_value."""
+    n = n if n is not None else config.SCENE_CHANGE_WINDOW_FRAMES
+    for _ in range(n):
+        motion_detector._brightness_history.append(gray_value)
+
+
+def test_scene_change_gate_not_triggered_on_flat_brightness():
+    """Constant brightness must not arm the scene-change gate."""
+    _fill_brightness_history(50.0)
+    motion_detector._last_gate_brightness = 50.0  # match history — instant-step delta = 0
+    motion_detector.detect(np.full(_SHAPE, [50, 50, 50], dtype=np.uint8))
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+def test_scene_change_gate_armed_on_large_brightness_jump():
+    """Rolling-window gate arms when end-to-end delta > SCENE_CHANGE_THRESHOLD.
+
+    Regression for #96: sustained AGC/AEC drift raised frame brightness ~20
+    gray units over the 5-second window. With SCENE_CHANGE_THRESHOLD=15, a
+    20-unit delta (baseline 50 → 70) must set _scene_suppress_until to a
+    future timestamp.
+    """
+    _fill_brightness_history(50.0, n=config.SCENE_CHANGE_WINDOW_FRAMES - 1)
+    motion_detector._last_gate_brightness = 70.0  # prime instant-step: prev≈current, delta=0
+    # gray([70,70,70]) ≈ 70; rolling history 50→70 = 20 > SCENE_CHANGE_THRESHOLD(15) → gate arms
+    motion_detector.detect(np.full(_SHAPE, [70, 70, 70], dtype=np.uint8))
+    assert motion_detector._scene_suppress_until > 0.0
+
+
+def test_scene_change_gate_suppresses_detect_while_active():
+    """detect() must return False while the suppress timer has not expired."""
+    motion_detector._scene_suppress_until = time.time() + 9999
+    motion, _ = motion_detector.detect(white_frame())
+    assert motion is False
+
+
+def test_scene_change_gate_allows_motion_after_expiry():
+    """Once the suppress timer expires, motion can be detected again."""
+    motion_detector._scene_suppress_until = 0.0  # already expired
+    _warm_up()
+    for _ in range(config.MIN_CONSECUTIVE_FRAMES):
+        motion, _ = motion_detector.detect(white_frame())
+    assert motion is True
+
+
+def test_reset_clears_brightness_history_preserves_suppress_timer():
+    """reset_motion_state() wipes brightness history but preserves the suppress timer.
+
+    The gate timer is a property of the external scene, not per-clip state (#100).
+    Zeroing it on reset would re-enable detection mid-transition if a clip ends
+    while the gate is still active.
+    """
+    _fill_brightness_history(50.0)
+    motion_detector._scene_suppress_until = 9999.0
+    motion_detector.reset_motion_state()
+    assert len(motion_detector._brightness_history) == 0
+    assert motion_detector._scene_suppress_until == 9999.0
+
+
+def test_gate_brightness_uses_background_pixels_not_full_frame():
+    """Gate brightness tracks background pixels only, not the full-frame mean.
+
+    Regression for #97: the old code used cv2.mean(gray_frame)[0], so a large
+    bright subject walking into frame inflated gate_brightness and could arm the
+    gate against itself. After the fix, cv2.mean(gray_frame, mask=bg_mask)[0]
+    excludes foreground pixels from the brightness metric.
+
+    With a 400×400 white blob against a gray-80 background on a 1280×720 frame:
+      background-pixel mean ≈ 80   (correct after #97 fix)
+      full-frame mean       ≈ 110  (what old code would return)
+    """
+    base = np.full(_SHAPE, [80, 80, 80], dtype=np.uint8)
+    _warm_up_on(base)
+
+    blob_frame = frame_with_blob([80, 80, 80], [255, 255, 255], blob_size=400)
+    motion_detector.detect(blob_frame)
+
+    # Gate brightness must be close to the background (≈80), not the
+    # blob-inflated full-frame mean (≈110). Tolerance of 20 accounts for
+    # MOG2 boundary pixels at the blob edge leaking into the background mask.
+    assert abs(motion_detector._last_gate_brightness - 80.0) < 20.0
+
+
+@pytest.mark.xfail(
+    reason="#120: MOG2 absorbs stationary subject into background model after ~50 frames, "
+           "reintroducing subject pixels into the background mask and arming the gate"
+)
+def test_gate_not_armed_when_subject_holds_still():
+    """Stationary subject held for 55 frames must not arm the scene-change gate.
+
+    Expected failure (#120): after ~50 frames of stillness, MOG2 absorbs the
+    subject's pixels into the background model. Gate brightness (background-only
+    mean) jumps to include the subject's pixel values, arming Stage A against
+    the real subject.
+    """
+    base = np.full(_SHAPE, [40, 40, 40], dtype=np.uint8)
+    subject_frame = frame_with_blob([40, 40, 40], [200, 200, 200], blob_size=400)
+    _warm_up_on(base)
+
+    for _ in range(55):
+        motion_detector.detect(subject_frame)
+
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+@pytest.mark.xfail(
+    reason="#114: rolling-window gate cannot distinguish camera AGC gain drift "
+           "from a real scene illumination change — 16-unit AGC drift over 5s "
+           "exceeds SCENE_CHANGE_THRESHOLD and suppresses detection"
+)
+def test_gate_not_armed_by_slow_agc_background_drift():
+    """Slow AGC-induced background brightness drift must not arm the rolling-window gate.
+
+    Expected failure (#114): over ~5 s a dark subject causes camera firmware to
+    raise analog gain, lifting background pixel values by ~16 gray units. The
+    rolling window sees end-to-end delta 16 > SCENE_CHANGE_THRESHOLD (15.0) and
+    arms the gate — suppressing detection of the subject that triggered the AGC.
+
+    The #97 fix excludes the subject's own pixels from gate_brightness but
+    cannot compensate for AGC-induced changes to background pixels themselves.
+    Demonstrated here by pre-loading 149 frames of stable background at 80.0,
+    then feeding one frame at 96 (the post-AGC level) to complete the window.
+    """
+    _fill_brightness_history(80.0, n=config.SCENE_CHANGE_WINDOW_FRAMES - 1)
+    motion_detector._last_gate_brightness = 95.0  # prime Stage A so delta ≈ 1 < 8
+
+    # Post-AGC frame: background brightness 16 units above baseline
+    motion_detector.detect(colored_frame([96, 96, 96]))
+
+    # Gate must not arm — the drift was hardware AGC, not a scene change
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+def test_stage_a_fires_after_pitch_black_frame():
+    """Stage A must fire when the previous frame was genuinely pitch-black (brightness 0.0).
+
+    Regression for #117: the prior fix changed > 0.0 to != 0.0, which are
+    identical for pixel means (always >= 0). A zero-brightness previous frame
+    still disabled Stage A, missing real AGC steps out of darkness.
+    After the fix, 0.0 is a valid prior brightness (not a sentinel); only
+    -1.0 (impossible pixel mean) means 'no prior frame'.
+    """
+    motion_detector._last_gate_brightness = 0.0  # previous frame was pitch black
+
+    motion_detector.detect(colored_frame([48, 48, 48]))  # delta ≈ 48 >> threshold 8.0
+
+    assert motion_detector._scene_suppress_until > 0.0
+    assert len(motion_detector._brightness_history) == 0
+
+
+def test_stage_a_skipped_on_first_frame():
+    """Stage A must not fire on the very first frame (no prior brightness to compare).
+
+    The -1.0 sentinel means 'no prior frame yet'. Without it, an initial
+    gate_brightness of e.g. 80.0 would compute instant_delta = |80 - (-1)| = 81,
+    which exceeds the threshold and incorrectly suppresses detection on startup.
+    """
+    assert motion_detector._last_gate_brightness == -1.0  # fresh fixture state
+    motion_detector.detect(colored_frame([80, 80, 80]))
+    assert motion_detector._scene_suppress_until == 0.0
+
+
+def test_stage_a_fires_on_single_frame_brightness_step():
+    """Stage A instant-step filter arms the gate without waiting for a full window.
+
+    Regression for #104: before Stage A existed only Stage B (rolling window)
+    could arm the gate, requiring SCENE_CHANGE_WINDOW_FRAMES (150) frames of
+    history before reacting. A sudden AGC step in a single frame passed through
+    undetected until the window caught up.
+
+    Stage A must arm _scene_suppress_until on the very first frame where the
+    brightness delta exceeds INSTANT_STEP_THRESHOLD, and must do so before
+    Stage B appends to _brightness_history (Stage A returns early).
+    """
+    # Simulate a previous frame at brightness 40. A [60,60,60] frame gives
+    # gate_brightness ≈ 60; delta = 20 > INSTANT_STEP_THRESHOLD (8.0).
+    motion_detector._last_gate_brightness = 40.0
+
+    motion_detector.detect(colored_frame([60, 60, 60]))
+
+    assert motion_detector._scene_suppress_until > 0.0
+    # Stage A returns before _is_scene_transition() runs, so the rolling
+    # history must still be empty — confirming Stage B never executed.
+    assert len(motion_detector._brightness_history) == 0

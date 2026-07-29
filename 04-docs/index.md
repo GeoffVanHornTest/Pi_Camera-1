@@ -5,10 +5,14 @@ A Raspberry Pi night vision motion camera with Telegram alerts and Dropbox uploa
 ## What it does
 
 - Detects motion using OpenCV MOG2 background subtraction with day/night threshold switching
+- Suppresses false triggers from lighting transitions (sunrise, AGC steps) via a rolling scene-change brightness gate
+- Filters out insects, foliage, and reflections using blob coherence and consecutive-frame requirements
 - Captures a snapshot when motion is detected
 - Sends the snapshot instantly to a **Telegram** chat via Bot API
-- Records a video clip of the motion event
+- Records a video clip of the motion event with 8-second pre-roll from a circular ring buffer
 - Uploads the finished clip to **Dropbox** and sends the share link via Telegram
+- Logs all detection events (motion, scene-change, Telegram, upload) to a persistent rotating file in `05-logs/`
+- All tunable parameters exposed as config constants, with a JSON override layer for future GUI integration
 
 ## Hardware
 

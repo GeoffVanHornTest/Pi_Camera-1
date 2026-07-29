@@ -10,6 +10,8 @@ loaded from a .env file for credentials and defined as constants for
 tunable parameters. Change a value here and it takes effect everywhere.
 """
 
+import json as _json
+import math as _math
 import os
 
 from dotenv import load_dotenv
@@ -37,14 +39,55 @@ FPS = 30
 # this — a second trigger arriving within the window is ignored so one long
 # motion event doesn't spawn back-to-back clips. Distinct from
 # POST_MOTION_BUFFER_SEC, which controls when the *current* clip ends.
-# MOTION_THRESHOLD_DAY is used when average frame brightness is above BRIGHTNESS_THRESHOLD.
-# MOTION_THRESHOLD_NIGHT is used in IR/dark mode — noise floor is significantly higher
-# due to IR LED flicker and increased sensor gain at low light.
-# BRIGHTNESS_THRESHOLD is the mean pixel value (0-255) that separates day from night mode.
+# MOTION_THRESHOLD_DAY is used when grayscale frame brightness is above BRIGHTNESS_THRESHOLD.
+# MOTION_THRESHOLD_NIGHT is used in IR/dark mode. Previously 25000 — lowered to 7500 after
+# field analysis (#19) showed 25000 suppressed real motion; Blue-channel inflation (#60) was
+# also masking night mode entirely. Brightness now derived from grayscale, not Blue channel.
+# BRIGHTNESS_THRESHOLD is the mean grayscale pixel value (0-255) separating day from night.
 MOTION_THRESHOLD_DAY = 7500
-MOTION_THRESHOLD_NIGHT = 25000
+MOTION_THRESHOLD_NIGHT = 7500
 BRIGHTNESS_THRESHOLD = 60
 MOTION_COOLDOWN_SEC = 10
+
+# --- Scene-change detection gate ---
+# MOG2 cannot distinguish a global lighting change (AGC/AEC step adjustments,
+# lights on/off, sunrise glare) from real motion — it sees both as foreground.
+# This gate tracks a rolling window of mean frame brightness and suppresses
+# detection when a significant jump is detected, giving MOG2 time to re-adapt.
+#
+# Confirmed root cause of 2026-07-22 false-positive burst (10 clips, 07:48–08:28):
+# camera AGC/AEC stepped during sunrise, creating frame-wide pixel-value shifts
+# that MOG2 classified as foreground. See issue #96 and #19 for full analysis.
+#
+# SCENE_CHANGE_WINDOW_SEC: rolling brightness window length in seconds.
+#   5 s is long enough to smooth sensor noise while still catching a discrete
+#   AGC step within one suppression window. SCENE_CHANGE_WINDOW_FRAMES is
+#   derived from this value and FPS — edit this constant, not the frames one.
+# SCENE_CHANGE_THRESHOLD: gray-unit end-to-end delta across the rolling window
+#   that arms the gate. 15.0 is calibrated for the two-filter architecture:
+#   the instant-step pre-filter (INSTANT_STEP_THRESHOLD) already catches single-
+#   frame AGC/AEC steps (8–12+ units); the rolling window only needs to catch
+#   large sustained drifts (≥15 units) that MOG2 cannot track. The original
+#   5.0 value fired on midday cloud-cover drift (5–10 units over 5 s), which
+#   MOG2 handles natively — causing spurious suppression and missed events.
+#   Calibrated from field data 2026-07-24; see issue #105.
+# SCENE_CHANGE_SUPPRESS_SEC: seconds MOG2 gets to re-adapt after the scene
+#   stabilises (i.e. after the last gate trigger, not the first). During a
+#   multi-second transition the gate fires on every frame; the suppress timer
+#   extends to now+SUPPRESS_SEC on each firing, so total wall-clock suppression
+#   from the first trigger equals transition_duration + SUPPRESS_SEC. A 5 s
+#   sunrise step therefore suppresses for ~15 s — correct, since detection
+#   would be noisy throughout the transition regardless. 10 s (300 frames at
+#   30 fps) gives MOG2 enough history to re-adapt after the scene settles (#98).
+SCENE_CHANGE_WINDOW_SEC = 5
+SCENE_CHANGE_WINDOW_FRAMES = SCENE_CHANGE_WINDOW_SEC * FPS  # derived — do not edit directly
+SCENE_CHANGE_THRESHOLD = 15.0
+SCENE_CHANGE_SUPPRESS_SEC = 10
+# INSTANT_STEP_THRESHOLD: frame-to-frame brightness delta that arms the gate
+# immediately, without waiting for the 5-second rolling window. AGC/AEC steps
+# are ~10+ gray units in a single frame; sensor noise is ~1–2 units. 8.0 gives
+# 4× headroom above noise and catches all observed AGC events.
+INSTANT_STEP_THRESHOLD = 8.0
 
 # --- Layered motion filters ---
 # MIN_CONSECUTIVE_FRAMES: how many back-to-back frames must pass all blob checks
@@ -91,8 +134,13 @@ VIDEO_BITRATE_BPS = 2_500_000
 # project root regardless of which directory the script is run from.
 POST_MOTION_BUFFER_SEC = 20
 MAX_RECORD_SEC = 120
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CLIPS_DIR = os.path.join(_BASE_DIR, "00-clips")
+
+# --- Logging ---
+# LOG_FILE is the persistent event log path. Rotated at 1 MB; 5 backups kept.
+# The 05-logs/ directory is created automatically on first write.
+LOG_FILE = os.path.join(_BASE_DIR, "05-logs", "pi_camera.log")
 
 # --- Notifications ---
 # NOTIFICATION_COOLDOWN_SEC is the minimum gap between Telegram alerts.
@@ -115,3 +163,129 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
+
+# --- Runtime overrides (written by the GUI, applied on every restart) ---
+# config_overrides.json at the project root can override any public constant
+# defined above. The GUI writes this file; changes take effect on the next
+# service restart. Keys absent from this module are silently ignored.
+#
+# GUI-tunable (restart required, no hardware re-init):
+#   MOTION_THRESHOLD_DAY, MOTION_THRESHOLD_NIGHT, BRIGHTNESS_THRESHOLD,
+#   MOTION_COOLDOWN_SEC, MIN_CONSECUTIVE_FRAMES, MIN_BLOB_COHERENCE,
+#   POST_MOTION_BUFFER_SEC, MAX_RECORD_SEC, NOTIFICATION_COOLDOWN_SEC,
+#   SCENE_CHANGE_WINDOW_SEC, SCENE_CHANGE_THRESHOLD, SCENE_CHANGE_SUPPRESS_SEC,
+#   INSTANT_STEP_THRESHOLD
+#
+# Hardware re-init required (picamera2 must reinitialise on restart):
+#   RESOLUTION, FPS, PRE_ROLL_SEC, VIDEO_BITRATE_BPS
+#
+# Managed via .env — not overridable here (enforced by _CREDENTIAL_KEYS below):
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DROPBOX_APP_KEY,
+#   DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN
+_CREDENTIAL_KEYS = {
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "DROPBOX_APP_KEY",
+    "DROPBOX_APP_SECRET",
+    "DROPBOX_REFRESH_TOKEN",
+}
+_OVERRIDES_PATH = (
+    os.environ.get("_PI_CAMERA_OVERRIDES_PATH")
+    or os.path.join(_BASE_DIR, "config_overrides.json")
+)
+if os.path.exists(_OVERRIDES_PATH):
+    try:
+        with open(_OVERRIDES_PATH) as _f:
+            _overrides = _json.load(_f)
+        if not isinstance(_overrides, dict):
+            raise ValueError  # top-level [] or scalar — treat as malformed
+        for _k, _v in _overrides.items():
+            if _k in globals() and not _k.startswith("_") and _k not in _CREDENTIAL_KEYS:
+                if _k in ("CLIPS_DIR", "LOG_FILE"):
+                    _raw = (
+                        str(_v) if os.path.isabs(str(_v))
+                        else os.path.join(_BASE_DIR, str(_v))
+                    )
+                    # Check for symlinks BEFORE realpath() — realpath() resolves all symlink
+                    # components, so islink() on its result is always False (dead code).
+                    # Checking the original input path catches symlinks the operator supplies.
+                    if os.path.islink(_raw):
+                        continue
+                    _abs = os.path.realpath(_raw)
+                    # Block entire project tree — one rule covers source dirs, .env, and all
+                    # other project files. Specific-subdir blocklists miss new files.
+                    if _abs == _BASE_DIR or _abs.startswith(_BASE_DIR + os.sep):
+                        continue
+                    # Allowlist: only accept paths under the user's home dir, /media, or /mnt.
+                    # A blocklist can never enumerate all dangerous paths (/var, /tmp, /opt,
+                    # /proc, system dirs, future additions); an allowlist covers the full class
+                    # in one rule and rejects everything outside it by default.
+                    # realpath() _home so the comparison is consistent on systems where /home
+                    # is itself a symlink (e.g. /home -> /var/home).
+                    _home = os.path.realpath(os.path.expanduser("~"))
+                    _ok_roots = (_home + os.sep, "/media" + os.sep, "/mnt" + os.sep)
+                    if not any(_abs.startswith(r) for r in _ok_roots):
+                        continue  # outside all allowed roots — reject
+                    # Block hidden directories anywhere in the path (e.g. ~/.ssh, ~/.gnupg,
+                    # ~/.aws). cleanup_old_clips() has no extension filter — pointing it at a
+                    # dot-dir would silently delete credential and config files older than 7 days.
+                    if any(p.startswith(".") for p in _abs.split(os.sep) if p):
+                        continue
+                    # Require the path to already exist.
+                    # realpath() on a non-existent path returns the bare string — a symlink
+                    # created there after config load would bypass all validation.
+                    # Requiring existence at load time closes the TOCTOU window: the GUI must
+                    # create the target before writing the override.
+                    # CLIPS_DIR must be a directory; LOG_FILE must have an existing parent dir
+                    # (the file itself may not exist yet — RotatingFileHandler creates it).
+                    if _k == "CLIPS_DIR":
+                        if not os.path.isdir(_abs):
+                            continue
+                    else:  # LOG_FILE — must be a file path; parent dir must exist
+                        # Reject if _abs is already a directory — RotatingFileHandler would
+                        # raise IsADirectoryError on every write, silently disabling logging.
+                        if os.path.isdir(_abs):
+                            continue
+                        _parent = os.path.dirname(_abs)
+                        if not os.path.isdir(_parent):
+                            continue
+                        # When LOG_FILE doesn't exist, realpath() returns the bare string.
+                        # Validate that the parent directory's realpath hasn't been swapped
+                        # for a symlink (e.g. ln -s ~/.ssh parent/). This closes the post-load
+                        # TOCTOU window where an attacker creates a symlink at the file path
+                        # after config loads but before RotatingFileHandler opens it (#151).
+                        if os.path.islink(_parent):
+                            continue
+                        _parent_real = os.path.realpath(_parent)
+                        if _parent_real != _parent:
+                            # Parent dir is a symlink — could redirect log writes elsewhere
+                            continue
+                    _v = _abs  # store the canonicalized absolute path
+                if not isinstance(globals()[_k], (int, float, str, bool)):
+                    continue  # skip non-scalar types — coercion corrupts them (tuple → char seq)
+                try:
+                    _coerced = type(globals()[_k])(_v)
+                except (TypeError, ValueError, OverflowError):
+                    continue  # wrong type, out of range, or non-finite — keep default
+                if isinstance(_coerced, float) and not _math.isfinite(_coerced):
+                    continue  # NaN / ±inf pass float() silently but break all gate comparisons
+                if isinstance(_coerced, (int, float)) and _coerced <= 0:
+                    continue  # zero/negative breaks derived constants (deque, FPS)
+                if isinstance(globals()[_k], float) and 0 < globals()[_k] < 1:
+                    if not (0 < _coerced < 1):
+                        continue  # fraction constants (e.g. MIN_BLOB_COHERENCE) must stay in (0,1)
+                globals()[_k] = _coerced
+    except (_json.JSONDecodeError, OSError, ValueError):
+        pass  # malformed, unreadable, or non-dict — run with defaults
+
+# Re-derive after overrides so SCENE_CHANGE_WINDOW_SEC changes propagate.
+# int() guards against a JSON float (e.g. 5.0) producing a float maxlen
+# that crashes deque() at import.
+SCENE_CHANGE_WINDOW_FRAMES = int(SCENE_CHANGE_WINDOW_SEC * FPS)
+
+# --- Disk space guard ---
+# Minimum free space on the clips filesystem before a new recording is allowed
+# to start. If free space drops below this threshold the clip is skipped and a
+# DISK_FULL event is logged. 500 MB leaves room for one max-length clip
+# (MAX_RECORD_SEC=120 at 2.5 Mbps ≈ 37 MB) with generous headroom.
+MIN_FREE_DISK_MB = 500

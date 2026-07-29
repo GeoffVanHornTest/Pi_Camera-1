@@ -5,6 +5,8 @@
 Initialises all modules and runs the main loop. Press Ctrl+C to stop.
 """
 
+import os
+import shutil
 import signal
 import sys
 import threading
@@ -13,6 +15,7 @@ import time
 import camera
 import config
 import dropbox_uploader
+import event_log
 import motion_detector
 import storage
 import telegram_notifier
@@ -24,14 +27,39 @@ import telegram_notifier
 # what get_frame() is doing. The main loop checks the event on every iteration.
 _watchdog = None
 _split_event = threading.Event()
+_currently_recording = False
+_MAX_CONSECUTIVE_ERRORS = 10
+_shutdown_called = False
+_shutdown_lock = threading.Lock()  # Protects _shutdown_called from signal-handler races (#154)
+_sigterm_received = False
+
+
+def _sigterm_handler(*_):
+    """Mark SIGTERM received; main loop exits cleanly at the next iteration boundary.
+
+    Setting a flag rather than calling _shutdown() directly eliminates all signal-
+    handler bytecode races (#146): _shutdown() only ever runs from the outer __main__
+    handler, after main() returns at a known-safe point between iterations.
+    """
+    global _sigterm_received
+    _sigterm_received = True
 
 
 def _arm_watchdog():
     """Start (or restart) the MAX_RECORD_SEC timer for the current clip."""
     global _watchdog
-    _split_event.clear()
     if _watchdog:
-        _watchdog.cancel()
+        _watchdog.cancel()   # cancel before clear — if the old timer fires between
+    _split_event.clear()     # clear and cancel, the event stays set and triggers a
+                             # spurious split on the next main-loop iteration
+    # Race condition: the old timer's run() may have already passed the
+    # `if not self.finished.is_set()` check before cancel() was called (#153).
+    # If so, its callback will execute and set _split_event even though we
+    # just cleared it. Yield to let the old timer thread finish.
+    time.sleep(0)  # Yield to other threads; catches the old timer's callback if it's queued
+    if _split_event.is_set():
+        # Old timer's callback fired despite cancel() — clear it for the new timer
+        _split_event.clear()
     _watchdog = threading.Timer(config.MAX_RECORD_SEC, _split_event.set)
     _watchdog.daemon = True
     _watchdog.start()
@@ -88,19 +116,34 @@ def _finish_clip():
 def main():
     """Run the camera loop — detect motion, record clips, and send alerts."""
 
+    global _currently_recording
     _validate_config()
 
     currently_recording = False
     filepath = None
     last_cleanup = 0
     motion_last_seen = 0.0
+    consecutive_errors = 0
 
     print("PI Camera started. Press Ctrl+C to stop.")
+    event_log.log("STARTUP", "PI Camera started")
 
     while True:
         try:
+            # Check SIGTERM flag at a known-safe point — between full iterations,
+            # never mid-state-transition. _shutdown() is called by the outer handler.
+            if _sigterm_received:
+                return
+
             if time.time() - last_cleanup > 86400:
-                storage.cleanup_old_clips(days=7)
+                try:
+                    storage.cleanup_old_clips(days=7)
+                except Exception as e:
+                    # Cleanup failure (e.g. CLIPS_DIR replaced by symlink, #147) is
+                    # logged and skipped — not counted against consecutive_errors.
+                    # last_cleanup is always updated so a permanent failure doesn't
+                    # retry every iteration and exhaust the error budget.
+                    event_log.log("ERROR", f"cleanup skipped: {e}")
                 last_cleanup = time.time()
 
             frame = camera.get_frame()
@@ -111,19 +154,34 @@ def main():
                 motion_last_seen = now
 
             if motion and not currently_recording and motion_detector.new_event_allowed():
+                free_mb = shutil.disk_usage(config.CLIPS_DIR).free // (1024 * 1024)
+                if free_mb < config.MIN_FREE_DISK_MB:
+                    event_log.log("DISK_FULL", f"Only {free_mb} MB free — skipping clip")
+                    continue
                 filepath = storage.get_video_path()
-                camera.start_recording(filepath)
-                _arm_watchdog()
-                snapshot = storage.save_snapshot(frame)
-                threading.Thread(
-                    target=telegram_notifier.send_photo,
-                    args=(snapshot,),
-                    kwargs={"caption": "Motion detected!"},
-                    daemon=True,
-                ).start()
+                _currently_recording = True   # set before start so SIGTERM sees it (#112)
                 currently_recording = True
+                try:
+                    camera.start_recording(filepath)
+                except Exception:
+                    _currently_recording = False  # reset both flags — session never started
+                    currently_recording = False
+                    raise
+                _arm_watchdog()
                 motion_last_seen = now
                 print(f"Motion detected — recording to {filepath}")
+                event_log.log("MOTION", f"Recording started → {filepath}")
+                try:
+                    snapshot = storage.save_snapshot(frame)
+                    threading.Thread(
+                        target=telegram_notifier.send_photo,
+                        args=(snapshot,),
+                        kwargs={"caption": "Motion detected!"},
+                        daemon=True,
+                    ).start()
+                except Exception as e:
+                    print(f"[main] snapshot failed — recording continues without alert: {e}")
+                    event_log.log("SNAPSHOT_FAIL", str(e))
 
             if currently_recording:
                 time_since_motion = now - motion_last_seen
@@ -131,37 +189,114 @@ def main():
                 if _split_event.is_set():
                     # Watchdog fired — MAX_RECORD_SEC elapsed on a background timer
                     # so this fires even if get_frame() was slow (#23).
+                    # Clear the event immediately so a split_recording() exception does
+                    # not leave it set and cause every subsequent iteration to retry
+                    # until consecutive_errors exhausts (#141).
+                    _split_event.clear()
                     print("Watchdog: MAX_RECORD_SEC reached — splitting clip.")
-                    filepath = storage.get_video_path()
-
-                    camera.split_recording(filepath, on_complete=_upload_and_notify)
-                    motion_detector.reset_motion_state()
-                    motion_last_seen = now
-                    _arm_watchdog()
+                    free_mb = shutil.disk_usage(config.CLIPS_DIR).free // (1024 * 1024)
+                    if free_mb < config.MIN_FREE_DISK_MB:
+                        event_log.log(
+                            "DISK_FULL",
+                            f"Only {free_mb} MB free — stopping instead of splitting",
+                        )
+                        filepath = None
+                        currently_recording = False
+                        _currently_recording = False  # clear before _finish_clip so _shutdown()
+                        _finish_clip()               # does not see a concurrent recording
+                    else:
+                        filepath = storage.get_video_path()
+                        event_log.log("SPLIT", f"Clip split → {filepath}")
+                        try:
+                            camera.split_recording(filepath, on_complete=_upload_and_notify)
+                            motion_detector.reset_motion_state()
+                            motion_last_seen = now
+                        finally:
+                            # Always re-arm watchdog so the clip doesn't grow without bound
+                            # even if split_recording() fails and the exception is caught.
+                            _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
+                    event_log.log("STOP", "Recording stopped")
                     filepath = None
                     currently_recording = False
-                    _finish_clip()
+                    _currently_recording = False  # clear before _finish_clip so _shutdown()
+                    _finish_clip()               # does not see a concurrent recording
+
+            consecutive_errors = 0
 
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:
-            print(f"[main] frame error (skipping): {e}")
+            consecutive_errors += 1
+            print(f"[main] frame error ({consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}): {e}")
+            event_log.log(
+                "ERROR",
+                f"frame error {consecutive_errors}/{_MAX_CONSECUTIVE_ERRORS}: {e}",
+            )
+            if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                event_log.log(
+                    "FATAL",
+                    f"{_MAX_CONSECUTIVE_ERRORS} consecutive errors — triggering restart",
+                )
+                raise RuntimeError(
+                    f"[main] {_MAX_CONSECUTIVE_ERRORS} consecutive errors — "
+                    "exiting so systemd can restart and re-initialise hardware"
+                ) from e
+            time.sleep(1)
 
 
-def _shutdown():
-    """Shared cleanup path for SIGTERM and KeyboardInterrupt."""
+def _shutdown(reason: str = "requested") -> None:
+    """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
+    global _shutdown_called
+    # Use a lock to make the reentrancy check atomic. The guard must survive a second
+    # signal delivery (KeyboardInterrupt) between LOAD and STORE bytecodes (#154).
+    # A second KI should not bypass the guard and re-run shutdown; it should return early.
+    with _shutdown_lock:
+        if _shutdown_called:
+            return  # reentrancy guard — only the first call proceeds
+        _shutdown_called = True
+    # Hard deadline: if graceful shutdown stalls (camera driver lockup, infinite
+    # ffmpeg hang), force exit so SIGTERM always terminates (#108/#126).
+    # 300 s is larger than the maximum legitimate shutdown work:
+    #   ffmpeg (30 s) + Dropbox upload (120 s) + share link (15 s) + Telegram (30 s) ≈ 195 s.
+    # Normal shutdowns complete before this fires; genuine stalls are killed within
+    # systemd's TimeoutStopSec window regardless.
+    def _force():
+        try:
+            event_log.log("SHUTDOWN_FORCED", "graceful shutdown exceeded 300 s — forcing exit")
+        except Exception:
+            pass
+        os._exit(1)
+
+    _deadline = threading.Timer(300.0, _force)
+    _deadline.daemon = True
+    _deadline.start()
+
     print("\nStopping PI Camera...")
-    _cancel_watchdog()
-    camera.close()
-    print("Camera released. Goodbye.")
-    sys.exit(0)
+    event_log.log("SHUTDOWN", reason)
+    try:
+        if _currently_recording:
+            print("Recording in progress — finalising clip before exit...")
+            _finish_clip()
+        else:
+            _cancel_watchdog()
+    finally:
+        # Ensure camera is always released even if _finish_clip() or _cancel_watchdog() raises.
+        # This prevents the picamera2 device lock from persisting if a camera driver fault
+        # occurs during shutdown (#149).
+        camera.close()
+        print("Camera released. Goodbye.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, lambda *_: _shutdown())
+    signal.signal(signal.SIGTERM, _sigterm_handler)
     try:
         main()
     except KeyboardInterrupt:
-        _shutdown()
+        _shutdown("KeyboardInterrupt")
+    except Exception:
+        _shutdown("Fatal error — restarting")
+    else:
+        _shutdown("SIGTERM received")  # main() returned because _sigterm_received=True

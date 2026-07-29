@@ -39,13 +39,13 @@ def test_cancel_watchdog_clears_watchdog_reference():
 
 
 def test_finish_clip_calls_stop_recording():
-    """_finish_clip() must call camera.stop_recording with an on_complete callback."""
+    """_finish_clip() must call camera.stop_recording with on_complete=_upload_and_notify."""
     _mock_camera.reset_mock()
     with patch.object(main.motion_detector, "reset_motion_state"):
         main._finish_clip()
     _mock_camera.stop_recording.assert_called_once()
     _, kwargs = _mock_camera.stop_recording.call_args
-    assert callable(kwargs.get("on_complete"))
+    assert kwargs.get("on_complete") is main._upload_and_notify
 
 
 def test_finish_clip_resets_motion_state():
@@ -82,6 +82,9 @@ def test_watchdog_split_calls_split_recording(monkeypatch):
     monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
     monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
     monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
 
     _mock_camera.reset_mock()
     call_count = [0]
@@ -125,3 +128,682 @@ def test_upload_and_notify_sends_failure_on_no_url(monkeypatch):
     monkeypatch.setattr(main.telegram_notifier, "send_message", mock_send)
     main._upload_and_notify("/clips/test.mp4")
     mock_send.assert_called_once_with("Clip recorded but Dropbox upload failed.")
+
+
+# --- #80: shutdown mid-clip must finalise the recording ---
+
+def test_shutdown_calls_finish_clip_when_recording(monkeypatch):
+    """_shutdown() must call camera.stop_recording if a clip is in progress."""
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main.threading, "Timer", lambda *a, **kw: MagicMock())
+    monkeypatch.setattr(main, "_currently_recording", True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    _mock_camera.reset_mock()
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    _mock_camera.stop_recording.assert_called_once()
+
+
+def test_shutdown_skips_finish_clip_when_not_recording(monkeypatch):
+    """_shutdown() must not call camera.stop_recording if no clip is in progress."""
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main.threading, "Timer", lambda *a, **kw: MagicMock())
+    monkeypatch.setattr(main, "_currently_recording", False)
+    _mock_camera.reset_mock()
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    _mock_camera.stop_recording.assert_not_called()
+
+
+# --- #78: snapshot failure must not break recording state ---
+
+def test_recording_continues_when_snapshot_raises(monkeypatch):
+    """If save_snapshot() raises, currently_recording must still be set True.
+
+    A snapshot failure must not leave the camera recording while the main
+    loop thinks currently_recording is False — that would prevent the
+    POST_MOTION_BUFFER_SEC stop condition from ever firing.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    failing_snapshot = MagicMock(side_effect=RuntimeError("disk full"))
+    monkeypatch.setattr(main.storage, "save_snapshot", failing_snapshot)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+
+    # Recording must have started despite the snapshot failure
+    _mock_camera.start_recording.assert_called_once()
+    # currently_recording must still be True — snapshot failure doesn't stop recording
+    assert main._currently_recording, (
+        "currently_recording must be True after snapshot failure; "
+        "otherwise POST_MOTION_BUFFER_SEC stop condition never fires"
+    )
+
+
+# --- #90: consecutive-error escalation ---
+
+def test_main_raises_after_max_consecutive_errors(monkeypatch):
+    """main() must raise RuntimeError after _MAX_CONSECUTIVE_ERRORS consecutive failures."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    failing_detect = MagicMock(side_effect=RuntimeError("cam fail"))
+    monkeypatch.setattr(main.motion_detector, "detect", failing_detect)
+
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+
+def test_consecutive_error_counter_resets_on_success(monkeypatch):
+    """A successful frame must reset the consecutive-error counter to zero."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] < 3:
+            raise RuntimeError("transient error")
+        if call_count[0] == 3:
+            return (False, frame)  # success — resets counter
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    # Should NOT raise RuntimeError — the counter reset on frame 3
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+
+# --- #107: low-disk guard ---
+
+
+def test_recording_skipped_when_disk_full(monkeypatch):
+    """start_recording must not be called when free disk space is below MIN_FREE_DISK_MB."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _full = MagicMock()
+    _full.free = 100 * 1024 * 1024  # 100 MB — below threshold
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _full)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.start_recording.assert_not_called()
+
+
+def test_recording_starts_when_disk_has_space(monkeypatch):
+    """start_recording must be called when free disk space exceeds MIN_FREE_DISK_MB."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3  # 10 GB — above threshold
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 2:
+            raise KeyboardInterrupt
+        return (True, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.start_recording.assert_called_once()
+
+
+# --- #126: shutdown deadline must outlast legitimate shutdown work (~195s) ---
+
+
+def test_shutdown_deadline_is_300s(monkeypatch):
+    """_shutdown() must set a 300s hard deadline, not the old 10s value.
+
+    ffmpeg (30s) + Dropbox (120s) + share link (15s) + Telegram (30s) ≈ 195s.
+    A 10s deadline fired during every normal shutdown with an active clip.
+    """
+    timer_calls = []
+
+    def capture_timer(*args, **kwargs):
+        timer_calls.append(args)
+        return MagicMock()
+
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main.threading, "Timer", capture_timer)
+    monkeypatch.setattr(main, "_currently_recording", False)
+
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    assert len(timer_calls) >= 1
+    assert timer_calls[0][0] == 300.0, f"deadline was {timer_calls[0][0]}s, expected 300s"
+
+
+# --- #127: watchdog split must check disk space before splitting ---
+
+
+def test_watchdog_split_stopped_when_disk_full(monkeypatch):
+    """When watchdog fires and disk is full, split_recording is skipped and clip is stopped."""
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.config, "MIN_FREE_DISK_MB", 500)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+
+    disk_calls = [0]
+
+    def fake_disk_usage(path):
+        disk_calls[0] += 1
+        result = MagicMock()
+        # First call: pre-start_recording check — plenty of space
+        # Subsequent calls: watchdog split check — disk full
+        result.free = 10 * 1024 ** 3 if disk_calls[0] == 1 else 100 * 1024 * 1024
+        return result
+
+    monkeypatch.setattr(main.shutil, "disk_usage", fake_disk_usage)
+
+    _mock_camera.reset_mock()
+    frame_count = [0]
+
+    def fake_get_frame():
+        frame_count[0] += 1
+        if frame_count[0] == 2:
+            main._split_event.set()
+        if frame_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+
+    _mock_camera.split_recording.assert_not_called()
+    _mock_camera.stop_recording.assert_called_once()
+
+
+# --- #130: _shutdown() must be idempotent against concurrent/repeated SIGTERM ---
+
+
+def test_shutdown_not_reentrant(monkeypatch):
+    """A second call to _shutdown() mid-shutdown must return immediately without
+    re-entering _finish_clip().
+
+    A second SIGTERM (common in systemd stop sequences) previously called
+    camera.stop_recording() a second time concurrently, racing on unlocked
+    camera module globals.
+    """
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main.threading, "Timer", lambda *a, **kw: MagicMock())
+    monkeypatch.setattr(main, "_currently_recording", True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    _mock_camera.reset_mock()
+
+    # First call: normal shutdown path, sets _shutdown_called = True.
+    with pytest.raises(SystemExit):
+        main._shutdown()
+
+    first_stop_count = _mock_camera.stop_recording.call_count
+
+    # Second call: must return immediately — no SystemExit, no stop_recording.
+    main._shutdown()
+
+    assert _mock_camera.stop_recording.call_count == first_stop_count, (
+        f"stop_recording called {_mock_camera.stop_recording.call_count} times "
+        f"(expected {first_stop_count}) — reentrancy guard not working"
+    )
+
+
+# --- #131: _currently_recording must be cleared before _finish_clip() in main loop ---
+
+
+def test_currently_recording_cleared_before_finish_clip(monkeypatch):
+    """_currently_recording must be False at the moment _finish_clip() is called
+    from the main loop's POST_MOTION_BUFFER_SEC stop branch.
+
+    If it were still True, a SIGTERM arriving mid-_finish_clip() would cause
+    _shutdown() to call _finish_clip() a second time concurrently.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 0)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    # Capture _currently_recording at the exact moment _finish_clip() is called.
+    flag_at_finish = []
+
+    def capturing_finish():
+        flag_at_finish.append(main._currently_recording)
+
+    monkeypatch.setattr(main, "_finish_clip", capturing_finish)
+    _mock_camera.reset_mock()
+
+    call_count = [0]
+
+    def fake_get_frame():
+        call_count[0] += 1
+        if call_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    def fake_detect(frame):
+        # Motion on frame 1 only; subsequent frames have no motion so
+        # POST_MOTION_BUFFER_SEC=0 fires on frame 2.
+        return (call_count[0] == 1, frame)
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()  # prevent leaked 9999s timer from firing in later tests (#145)
+
+    assert len(flag_at_finish) >= 1, "_finish_clip was never called"
+    assert flag_at_finish[0] is False, (
+        f"_currently_recording was {flag_at_finish[0]} when _finish_clip() was called "
+        "— it must be False to prevent concurrent _finish_clip() call from _shutdown()"
+    )
+
+
+# --- #134: _currently_recording must be reset if start_recording() raises ---
+
+
+def test_currently_recording_reset_on_start_recording_failure(monkeypatch):
+    """If camera.start_recording() raises, both recording flags must be reset to False.
+
+    _currently_recording is set True before start_recording() to close the #112
+    SIGTERM race. If start_recording() then raises (hardware error), the flag
+    must be reset — otherwise _shutdown() sees True and calls _finish_clip() on
+    a session that was never started.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    _mock_camera.reset_mock()
+    call_count = [0]
+
+    def fake_get_frame():
+        call_count[0] += 1
+        if call_count[0] > 3:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    _mock_camera.start_recording.side_effect = RuntimeError("hardware fault")
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    _mock_camera.start_recording.side_effect = None  # prevent leaking to other tests (#145)
+
+    assert main._currently_recording is False, (
+        "_currently_recording still True after start_recording() failure — "
+        "_shutdown() would call _finish_clip() on a session that was never started"
+    )
+
+
+# --- #146: SIGTERM flag causes main() to return cleanly between iterations ---
+
+
+def test_sigterm_flag_exits_main_loop(monkeypatch):
+    """Setting _sigterm_received=True must cause main() to return without calling
+    _finish_clip() or touching recording state mid-transition.
+
+    The signal handler sets only a flag; _shutdown() is called by the outer
+    __main__ handler after main() returns at a known-safe iteration boundary.
+    This eliminates all signal-handler bytecode races (#146).
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            # Simulate SIGTERM arriving mid-loop — sets flag only, does not call _shutdown()
+            monkeypatch.setattr(main, "_sigterm_received", True)
+        return (False, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+    monkeypatch.setattr(main, "_sigterm_received", False)
+
+    main.main()  # must return normally, not raise
+
+    # main() must have returned, not called _finish_clip()
+    _mock_camera.stop_recording.assert_not_called()
+    monkeypatch.setattr(main, "_sigterm_received", False)
+
+
+# --- #141: _split_event must be cleared before split_recording() to prevent infinite retry ---
+
+
+def test_split_event_cleared_before_split_recording_exception(monkeypatch):
+    """_split_event must be cleared before split_recording() is called.
+
+    If split_recording() raises, _arm_watchdog() (the only other caller that
+    clears _split_event) is never reached. Without a pre-clear, _split_event
+    stays set and every subsequent iteration retries — exhausting consecutive_errors
+    and restarting the service (#141).
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 9999)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 9999)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+    monkeypatch.setattr(main.motion_detector, "detect", lambda f: (True, f))
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(main.motion_detector, "reset_motion_state", lambda: None)
+    monkeypatch.setattr(main.telegram_notifier, "send_photo", lambda *a, **kw: None)
+    monkeypatch.setattr(main.telegram_notifier, "_last_photo_sent", 0.0)
+    _free = MagicMock()
+    _free.free = 10 * 1024 ** 3
+    monkeypatch.setattr(main.shutil, "disk_usage", lambda p: _free)
+
+    _mock_camera.reset_mock()
+    frame_count = [0]
+    split_calls = [0]
+
+    def fake_get_frame():
+        frame_count[0] += 1
+        if frame_count[0] == 2:
+            main._split_event.set()  # simulate watchdog fire
+        if frame_count[0] > 4:
+            raise KeyboardInterrupt
+        return MagicMock()
+
+    def failing_split(filepath, on_complete=None):
+        split_calls[0] += 1
+        raise IOError("transient disk stall")
+
+    _mock_camera.get_frame.side_effect = fake_get_frame
+    _mock_camera.split_recording.side_effect = failing_split
+
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    main._cancel_watchdog()
+    _mock_camera.split_recording.side_effect = None
+
+    # _split_event must be clear after the exception — not set, causing retry on every loop
+    assert not main._split_event.is_set(), (
+        "_split_event still set after split_recording() exception — "
+        "must be cleared before split_recording() to prevent infinite retry"
+    )
+    # split_recording should only have been attempted once (not retried every frame)
+    assert split_calls[0] == 1, (
+        f"split_recording called {split_calls[0]} times — "
+        "stale _split_event caused retry loop"
+    )
+
+
+# --- #147: cleanup errors must not count against consecutive_errors ---
+
+
+def test_cleanup_error_does_not_kill_service(monkeypatch):
+    """A RuntimeError from cleanup_old_clips() must not increment consecutive_errors.
+
+    If CLIPS_DIR is replaced by a symlink after startup, _validate_clips_dir()
+    raises RuntimeError. Without isolation, this increments consecutive_errors and
+    kills the service after 10 iterations. The fix wraps cleanup in its own
+    try/except and always updates last_cleanup (#147).
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: False)
+
+    cleanup_calls = [0]
+
+    def failing_cleanup(days=7):
+        cleanup_calls[0] += 1
+        raise RuntimeError("CLIPS_DIR has been replaced by a symlink")
+
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", failing_cleanup)
+
+    call_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        if call_count[0] > 3:
+            raise KeyboardInterrupt
+        return (False, frame)
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.side_effect = None
+    _mock_camera.get_frame.return_value = MagicMock()
+
+    # Must raise KeyboardInterrupt (normal exit), NOT RuntimeError (consecutive errors)
+    with pytest.raises(KeyboardInterrupt):
+        main.main()
+
+    assert cleanup_calls[0] == 1, (
+        "cleanup_old_clips called more than once — last_cleanup not updated after failure"
+    )
+
+
+# --- #148: consecutive_errors must not reset before recording operations ---
+
+
+def test_consecutive_errors_accumulates_on_recording_failure(monkeypatch):
+    """consecutive_errors must not reset if start_recording() or other recording ops fail.
+
+    A persistent failure in the recording path (read-only disk, permissions, encoder fault)
+    should increment consecutive_errors on every iteration so the 10-error restart guard
+    eventually fires and restarts the service to re-initialize hardware.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 0.1)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+
+    # Motion detected, but start_recording fails on every iteration
+    call_count = [0]
+
+    def failing_detect(frame):
+        call_count[0] += 1
+        return (call_count[0] < 10, frame)  # motion for first 9 calls
+
+    def failing_start_recording(path):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(main.motion_detector, "detect", failing_detect)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(_mock_camera, "start_recording", failing_start_recording)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.return_value = MagicMock()
+    _mock_camera.get_frame.side_effect = None
+
+    # Should raise RuntimeError (too many consecutive errors), not succeed with partial recording
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+    # Verify that consecutive_errors actually accumulated (reached 3 = _MAX_CONSECUTIVE_ERRORS)
+    # rather than resetting after each successful get_frame()
+    assert call_count[0] >= 3, "not enough iterations to trigger restart guard"
+
+
+# --- #150: split_recording failure must re-arm watchdog ---
+
+
+def test_split_recording_failure_rearms_watchdog(monkeypatch):
+    """_arm_watchdog() must be called even if camera.split_recording() raises.
+
+    If split_recording fails (e.g. disk nearly full), the watchdog must be re-armed so
+    the clip doesn't grow indefinitely. The exception should propagate to the outer
+    handler (incrementing consecutive_errors), not kill the watchdog.
+    """
+    monkeypatch.setattr(main, "_validate_config", lambda: None)
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 0.1)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 5)
+    monkeypatch.setattr(main.storage, "cleanup_old_clips", lambda days=7: None)
+    monkeypatch.setattr(main.storage, "get_video_path", lambda: "/clips/test.mp4")
+    monkeypatch.setattr(main.storage, "save_snapshot", lambda f: "/clips/snap.jpg")
+
+    watchdog_arms = [0]
+    original_arm = main._arm_watchdog
+
+    def counting_arm_watchdog():
+        watchdog_arms[0] += 1
+        original_arm()
+
+    monkeypatch.setattr(main, "_arm_watchdog", counting_arm_watchdog)
+
+    # Start recording, then force the watchdog to fire and split_recording to fail
+    call_count = [0]
+    split_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        return (call_count[0] < 20, frame)  # continuous motion
+
+    def failing_split_recording(path, on_complete=None):
+        split_count[0] += 1
+        raise OSError("disk error during split")
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(_mock_camera, "split_recording", failing_split_recording)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.return_value = MagicMock()
+    _mock_camera.get_frame.side_effect = None
+
+    # Let it run until consecutive_errors reaches the limit
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+    # Watchdog should have been armed at least twice: once at recording start, once
+    # after the first failed split (in the finally block)
+    assert watchdog_arms[0] >= 2, f"watchdog re-armed only {watchdog_arms[0]} times; expected >= 2"
+    assert split_count[0] >= 1, "split_recording never called"
+
+
+# --- #149: _shutdown must call camera.close() even if _finish_clip() raises ---
+
+
+def test_shutdown_calls_camera_close_on_finish_clip_failure(monkeypatch):
+    """camera.close() must always be called from _shutdown(), even if _finish_clip() raises."""
+    _mock_camera.reset_mock()
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main, "_currently_recording", True)
+
+    def failing_finish_clip():
+        raise RuntimeError("camera driver fault during stop_recording")
+
+    with patch.object(main, "_finish_clip", failing_finish_clip):
+        with patch("sys.exit"):  # prevent actual exit during test
+            # _finish_clip() raises, but camera.close() in the finally block must still run.
+            # The exception propagates because sys.exit is mocked, but we verify camera.close()
+            # was called by checking the mock call count.
+            try:
+                main._shutdown("test")
+            except RuntimeError:
+                pass  # Expected; _finish_clip raised and sys.exit was mocked
+
+    # camera.close() must have been called despite the exception from _finish_clip()
+    _mock_camera.close.assert_called_once()

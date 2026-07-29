@@ -5,15 +5,25 @@ send_photo() enforces NOTIFICATION_COOLDOWN_SEC between alerts so that rapid
 re-triggers don't flood the chat. send_message() (clip-ready links) always sends.
 """
 
+import os
 import time
 
 import config
+import cv2
+import event_log
 import requests
 
 _last_photo_sent = 0.0
 
 
-def send_photo(image_path, caption="Motion detected!"):
+def _safe_err(exc):
+    """Return exc's string representation with the bot token redacted."""
+    token = config.TELEGRAM_BOT_TOKEN or ""
+    msg = str(exc)
+    return msg.replace(token, "***") if token else msg
+
+
+def send_photo(image_path: str, caption: str = "Motion detected!") -> None:
     """Send a JPEG image to the configured Telegram chat.
 
     Skipped silently if called within NOTIFICATION_COOLDOWN_SEC of the last
@@ -26,26 +36,47 @@ def send_photo(image_path, caption="Motion detected!"):
     global _last_photo_sent
     if time.time() - _last_photo_sent < config.NOTIFICATION_COOLDOWN_SEC:
         print("[telegram] send_photo suppressed — within cooldown window")
+        event_log.log("TELEGRAM_SKIP", "photo suppressed — within cooldown")
         return
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendPhoto"
+    _thumb_path = None
+    img = cv2.imread(image_path)
+    if img is not None:
+        base, ext = os.path.splitext(image_path)
+        _thumb_path = base + "_thumb" + ext
+        small = cv2.resize(img, (640, 360))
+        cv2.imwrite(_thumb_path, small, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    upload_path = _thumb_path if _thumb_path else image_path
     try:
-        with open(image_path, "rb") as f:
+        with open(upload_path, "rb") as f:
             resp = requests.post(
                 url,
                 data={"chat_id": config.TELEGRAM_CHAT_ID, "caption": caption},
                 files={"photo": f},
-                timeout=15,
+                timeout=30,
             )
         body = resp.json()
         if body.get("ok"):
             _last_photo_sent = time.time()
+            event_log.log("TELEGRAM_OK", f"Photo sent: {image_path}")
         else:
-            print(f"[telegram] send_photo API error: {body.get('description', body)}")
+            desc = body.get("description", body)
+            _last_photo_sent = time.time()
+            print(f"[telegram] send_photo API error: {_safe_err(str(desc))}")
+            event_log.log("TELEGRAM_FAIL", f"send_photo API error: {_safe_err(str(desc))}")
     except Exception as e:
-        print(f"[telegram] send_photo failed: {e}")
+        _last_photo_sent = time.time()
+        print(f"[telegram] send_photo failed: {_safe_err(e)}")
+        event_log.log("TELEGRAM_FAIL", f"send_photo error: {_safe_err(e)}")
+    finally:
+        if _thumb_path:
+            try:
+                os.remove(_thumb_path)
+            except OSError:
+                pass
 
 
-def send_message(text):
+def send_message(text: str) -> None:
     """Send a plain text message to the configured Telegram chat.
 
     Args:
@@ -59,7 +90,12 @@ def send_message(text):
             timeout=15,
         )
         body = resp.json()
-        if not body.get("ok"):
-            print(f"[telegram] send_message API error: {body.get('description', body)}")
+        if body.get("ok"):
+            event_log.log("TELEGRAM_OK", f"Message sent: {text}")
+        else:
+            desc = body.get("description", body)
+            print(f"[telegram] send_message API error: {_safe_err(str(desc))}")
+            event_log.log("TELEGRAM_FAIL", f"send_message API error: {_safe_err(str(desc))}")
     except Exception as e:
-        print(f"[telegram] send_message failed: {e}")
+        print(f"[telegram] send_message failed: {_safe_err(e)}")
+        event_log.log("TELEGRAM_FAIL", f"send_message error: {_safe_err(e)}")

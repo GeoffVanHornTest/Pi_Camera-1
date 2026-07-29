@@ -137,7 +137,7 @@ def main():
     print(f"verify_timing.py — {len(clips)} clip(s) in {clips_dir}")
     print(
         f"PRE_ROLL_SEC={config.PRE_ROLL_SEC}s  "
-        f"MIN_RECORD_SEC={config.MIN_RECORD_SEC}s  "
+        f"MAX_RECORD_SEC={config.MAX_RECORD_SEC}s  "
         f"pass threshold≥{PREROLL_PASS_THRESHOLD:.0f}s"
     )
     print()

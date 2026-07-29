@@ -1,6 +1,17 @@
 [Unit]
 Description=PI Camera motion detection
-After=network.target
+# network-online.target waits for DHCP/routing to be fully established (#136).
+# network.target only signals that interfaces are up — DNS and routes may not
+# be available yet, causing the first Telegram/Dropbox calls to fail silently.
+# Wants (not Requires) so the service still starts in offline/LAN-only deployments.
+After=network-online.target
+Wants=network-online.target
+# Burst limit: 5 failures within 60 s → systemd 'failed' state (#137).
+# Without this, RestartSec=5 keeps restarts below the default 10s burst window
+# and the service restarts indefinitely on permanent failures (deleted .env,
+# missing dependency) with no alerting.
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 # NOTE: During algorithm calibration the deployed /etc/systemd/system/pi-camera.service
@@ -14,6 +25,11 @@ ExecStart=/home/pi/Desktop/PI_Camera/.venv/bin/python /home/pi/Desktop/PI_Camera
 WorkingDirectory=/home/pi/Desktop/PI_Camera/02-scripts
 Restart=always
 RestartSec=5
+# TimeoutStopSec must exceed the internal shutdown deadline (300 s) so systemd
+# does not SIGKILL the process before the forced os._exit(1) fires (#129/#126).
+# 330 s also outlasts the maximum legitimate shutdown work: ffmpeg (30 s) +
+# Dropbox upload (120 s) + share link (15 s) + Telegram (30 s) ≈ 195 s.
+TimeoutStopSec=330
 User=pi
 
 [Install]

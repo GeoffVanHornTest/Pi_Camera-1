@@ -33,3 +33,7 @@ Auto-generated from docstrings in `02-scripts/`. These scripts are run manually 
 ## cross_analysis
 
 ::: cross_analysis
+
+## analyze_brightness_channels
+
+::: analyze_brightness_channels

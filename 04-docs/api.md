@@ -34,6 +34,10 @@ Auto-generated from docstrings in `02-scripts/`.
 
 ::: dropbox_uploader
 
+## event_log
+
+::: event_log
+
 ## main
 
 ::: main

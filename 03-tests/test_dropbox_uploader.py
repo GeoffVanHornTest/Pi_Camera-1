@@ -5,6 +5,14 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "02-scripts"))
 
 import dropbox_uploader
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def reset_token_cache(monkeypatch):
+    """Reset the module-level token cache before each test."""
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", None)
+    monkeypatch.setattr(dropbox_uploader, "_token_fetched_at", 0.0)
 
 
 def _mock_token_response(token="test-access-token"):
@@ -84,6 +92,88 @@ def test_upload_uses_correct_dropbox_path(tmp_path, monkeypatch):
     assert "/PI_Camera/motion_2026-07-11_10-00-00.mp4" in api_arg
 
 
+def test_upload_api_arg_header_is_valid_json(tmp_path, monkeypatch):
+    """Dropbox-API-Arg header must be valid JSON regardless of filename content."""
+    import json
+
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+
+    # Filename with characters that would break an f-string JSON construction
+    clip = tmp_path / 'motion_"tricky"_\\path.mp4'
+    clip.write_bytes(b"fake video")
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.side_effect = [
+            _mock_token_response(),
+            _mock_upload_response(),
+            _mock_share_response(),
+        ]
+        dropbox_uploader.upload(str(clip))
+
+    upload_call = mock_post.call_args_list[1]
+    api_arg = upload_call[1]["headers"]["Dropbox-API-Arg"]
+    parsed = json.loads(api_arg)  # raises if not valid JSON
+    assert parsed["mode"] == "add"
+    assert parsed["path"].startswith("/PI_Camera/")
+
+
+def test_upload_returns_none_for_oversized_file(tmp_path, monkeypatch):
+    """upload() must return None without calling the API when file exceeds 150MB limit."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+    monkeypatch.setattr(dropbox_uploader, "_UPLOAD_MAX_BYTES", 10)  # 10-byte limit for test
+
+    clip = tmp_path / "big.mp4"
+    clip.write_bytes(b"x" * 11)  # 11 bytes > 10-byte limit
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        result = dropbox_uploader.upload(str(clip))
+
+    assert result is None
+    mock_post.assert_not_called()
+
+
+def test_get_access_token_caches_token(monkeypatch):
+    """_get_access_token() must not POST again while the cached token is still valid."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.return_value = _mock_token_response("cached-token")
+        first = dropbox_uploader._get_access_token()
+        second = dropbox_uploader._get_access_token()
+
+    assert first == "cached-token"
+    assert second == "cached-token"
+    assert mock_post.call_count == 1  # only one network call
+
+
+def test_get_access_token_refreshes_when_expired(monkeypatch):
+    """_get_access_token() must fetch a new token when the cached one has expired."""
+    import time
+
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "secret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "refresh")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", "old-token")
+    # Simulate a token fetched well beyond the TTL
+    monkeypatch.setattr(
+        dropbox_uploader, "_token_fetched_at",
+        time.time() - dropbox_uploader._TOKEN_TTL - 1,
+    )
+
+    with patch("dropbox_uploader.requests.post") as mock_post:
+        mock_post.return_value = _mock_token_response("new-token")
+        token = dropbox_uploader._get_access_token()
+
+    assert token == "new-token"
+    mock_post.assert_called_once()
+
+
 def test_get_access_token_uses_refresh_token(monkeypatch):
     """_get_access_token() must POST the refresh token to get a new access token."""
     monkeypatch.setattr("config.DROPBOX_APP_KEY", "mykey")
@@ -98,3 +188,46 @@ def test_get_access_token_uses_refresh_token(monkeypatch):
     data = mock_post.call_args[1]["data"]
     assert data["refresh_token"] == "myrefresh"
     assert data["grant_type"] == "refresh_token"
+
+
+# --- #91: credential redaction in exception messages ---
+
+def test_safe_err_redacts_app_key(monkeypatch):
+    """_safe_err() must redact DROPBOX_APP_KEY from exception strings."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "supersecretkey")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", None)
+
+    result = dropbox_uploader._safe_err(Exception("error with supersecretkey in message"))
+    assert "supersecretkey" not in result
+    assert "***" in result
+
+
+def test_safe_err_redacts_cached_token(monkeypatch):
+    """_safe_err() must redact the cached access token from exception strings."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "")
+    monkeypatch.setattr(dropbox_uploader, "_cached_token", "live-access-token")
+
+    result = dropbox_uploader._safe_err(Exception("Bearer live-access-token rejected"))
+    assert "live-access-token" not in result
+    assert "***" in result
+
+
+def test_upload_exception_does_not_log_credentials(tmp_path, monkeypatch, capsys):
+    """upload() exception output must not contain the app key."""
+    monkeypatch.setattr("config.DROPBOX_APP_KEY", "my-secret-app-key")
+    monkeypatch.setattr("config.DROPBOX_APP_SECRET", "mysecret")
+    monkeypatch.setattr("config.DROPBOX_REFRESH_TOKEN", "myrefresh")
+
+    clip = tmp_path / "motion.mp4"
+    clip.write_bytes(b"fake video")
+
+    with patch("dropbox_uploader.requests.post",
+               side_effect=Exception("my-secret-app-key leaked")):
+        dropbox_uploader.upload(str(clip))
+
+    captured = capsys.readouterr()
+    assert "my-secret-app-key" not in captured.out
