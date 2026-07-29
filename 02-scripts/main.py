@@ -213,7 +213,7 @@ def main():
                             motion_last_seen = now
                         finally:
                             # Always re-arm watchdog so the clip doesn't grow without bound
-                            # if split_recording() fails and the exception is caught by outer handler.
+                            # even if split_recording() fails and the exception is caught.
                             _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
