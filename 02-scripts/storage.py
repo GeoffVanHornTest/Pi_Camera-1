@@ -15,11 +15,12 @@ import config
 import cv2
 import numpy as np
 
+if os.path.isfile(config.CLIPS_DIR):
+    raise RuntimeError(
+        f"CLIPS_DIR {config.CLIPS_DIR!r} is a regular file, not a directory. "
+        "Remove the file and ensure the directory exists."
+    )
 os.makedirs(config.CLIPS_DIR, exist_ok=True)
-# os.makedirs() creates the clips folder if it doesn't already exist.
-# exist_ok=True prevents a crash if the folder is already there — it simply moves on.
-# This runs once when the module is first imported, so the folder is always
-# guaranteed to exist before any file-saving functions are called.
 
 
 def get_video_path() -> str:
@@ -99,6 +100,13 @@ def cleanup_old_clips(days: int = 7) -> None:
         days: Files older than this many days are removed. Defaults to 7.
     """
     _validate_clips_dir()
+    # Re-check for symlink immediately before listdir() to catch any race between
+    # _validate_clips_dir() returning and os.listdir() executing. An attacker with
+    # local write access could rename() a pre-staged symlink into place in that window.
+    if os.path.islink(config.CLIPS_DIR):
+        raise RuntimeError(
+            f"CLIPS_DIR {config.CLIPS_DIR!r} was replaced by a symlink — aborting cleanup"
+        )
     now = time.time()
     cutoff = now - (days * 86400)
     for filename in os.listdir(config.CLIPS_DIR):

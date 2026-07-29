@@ -30,6 +30,7 @@ _split_event = threading.Event()
 _currently_recording = False
 _MAX_CONSECUTIVE_ERRORS = 10
 _shutdown_called = False
+_shutdown_lock = threading.Lock()  # Protects _shutdown_called from signal-handler races (#154)
 _sigterm_received = False
 
 
@@ -51,6 +52,14 @@ def _arm_watchdog():
         _watchdog.cancel()   # cancel before clear — if the old timer fires between
     _split_event.clear()     # clear and cancel, the event stays set and triggers a
                              # spurious split on the next main-loop iteration
+    # Race condition: the old timer's run() may have already passed the
+    # `if not self.finished.is_set()` check before cancel() was called (#153).
+    # If so, its callback will execute and set _split_event even though we
+    # just cleared it. Yield to let the old timer thread finish.
+    time.sleep(0)  # Yield to other threads; catches the old timer's callback if it's queued
+    if _split_event.is_set():
+        # Old timer's callback fired despite cancel() — clear it for the new timer
+        _split_event.clear()
     _watchdog = threading.Timer(config.MAX_RECORD_SEC, _split_event.set)
     _watchdog.daemon = True
     _watchdog.start()
@@ -240,9 +249,13 @@ def main():
 def _shutdown(reason: str = "requested") -> None:
     """Shared cleanup path for SIGTERM, KeyboardInterrupt, and fatal errors."""
     global _shutdown_called
-    if _shutdown_called:
-        return  # guard against KeyboardInterrupt arriving inside _shutdown() itself
-    _shutdown_called = True
+    # Use a lock to make the reentrancy check atomic. The guard must survive a second
+    # signal delivery (KeyboardInterrupt) between LOAD and STORE bytecodes (#154).
+    # A second KI should not bypass the guard and re-run shutdown; it should return early.
+    with _shutdown_lock:
+        if _shutdown_called:
+            return  # reentrancy guard — only the first call proceeds
+        _shutdown_called = True
     # Hard deadline: if graceful shutdown stalls (camera driver lockup, infinite
     # ffmpeg hang), force exit so SIGTERM always terminates (#108/#126).
     # 300 s is larger than the maximum legitimate shutdown work:

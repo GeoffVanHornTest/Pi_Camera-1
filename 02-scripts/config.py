@@ -246,7 +246,19 @@ if os.path.exists(_OVERRIDES_PATH):
                         # raise IsADirectoryError on every write, silently disabling logging.
                         if os.path.isdir(_abs):
                             continue
-                        if not os.path.isdir(os.path.dirname(_abs)):
+                        _parent = os.path.dirname(_abs)
+                        if not os.path.isdir(_parent):
+                            continue
+                        # When LOG_FILE doesn't exist, realpath() returns the bare string.
+                        # Validate that the parent directory's realpath hasn't been swapped
+                        # for a symlink (e.g. ln -s ~/.ssh parent/). This closes the post-load
+                        # TOCTOU window where an attacker creates a symlink at the file path
+                        # after config loads but before RotatingFileHandler opens it (#151).
+                        if os.path.islink(_parent):
+                            continue
+                        _parent_real = os.path.realpath(_parent)
+                        if _parent_real != _parent:
+                            # Parent dir is a symlink — could redirect log writes elsewhere
                             continue
                     _v = _abs  # store the canonicalized absolute path
                 if not isinstance(globals()[_k], (int, float, str, bool)):

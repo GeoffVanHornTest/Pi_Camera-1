@@ -201,6 +201,11 @@ def test_recording_continues_when_snapshot_raises(monkeypatch):
 
     # Recording must have started despite the snapshot failure
     _mock_camera.start_recording.assert_called_once()
+    # currently_recording must still be True — snapshot failure doesn't stop recording
+    assert main._currently_recording, (
+        "currently_recording must be True after snapshot failure; "
+        "otherwise POST_MOTION_BUFFER_SEC stop condition never fires"
+    )
 
 
 # --- #90: consecutive-error escalation ---
@@ -773,11 +778,11 @@ def test_split_recording_failure_rearms_watchdog(monkeypatch):
 # --- #149: _shutdown must call camera.close() even if _finish_clip() raises ---
 
 
-def test_shutdown_calls_camera_close_on_finish_clip_failure():
+def test_shutdown_calls_camera_close_on_finish_clip_failure(monkeypatch):
     """camera.close() must always be called from _shutdown(), even if _finish_clip() raises."""
     _mock_camera.reset_mock()
-    main._shutdown_called = False
-    main._currently_recording = True
+    monkeypatch.setattr(main, "_shutdown_called", False)
+    monkeypatch.setattr(main, "_currently_recording", True)
 
     def failing_finish_clip():
         raise RuntimeError("camera driver fault during stop_recording")
