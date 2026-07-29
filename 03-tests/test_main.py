@@ -678,3 +678,119 @@ def test_cleanup_error_does_not_kill_service(monkeypatch):
     assert cleanup_calls[0] == 1, (
         "cleanup_old_clips called more than once — last_cleanup not updated after failure"
     )
+
+
+# --- #148: consecutive_errors must not reset before recording operations ---
+
+
+def test_consecutive_errors_accumulates_on_recording_failure(monkeypatch):
+    """consecutive_errors must not reset if start_recording() or other recording ops fail.
+
+    A persistent failure in the recording path (read-only disk, permissions, encoder fault)
+    should increment consecutive_errors on every iteration so the 10-error restart guard
+    eventually fires and restarts the service to re-initialize hardware.
+    """
+    monkeypatch.setattr(main.config, "POST_MOTION_BUFFER_SEC", 0.1)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 3)
+
+    # Motion detected, but start_recording fails on every iteration
+    call_count = [0]
+
+    def failing_detect(frame):
+        call_count[0] += 1
+        return (call_count[0] < 10, frame)  # motion for first 9 calls
+
+    def failing_start_recording(path):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(main.motion_detector, "detect", failing_detect)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(_mock_camera, "start_recording", failing_start_recording)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.return_value = MagicMock()
+    _mock_camera.get_frame.side_effect = None
+
+    # Should raise RuntimeError (too many consecutive errors), not succeed with partial recording
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+    # Verify that consecutive_errors actually accumulated (reached 3 = _MAX_CONSECUTIVE_ERRORS)
+    # rather than resetting after each successful get_frame()
+    assert call_count[0] >= 3, "not enough iterations to trigger restart guard"
+
+
+# --- #150: split_recording failure must re-arm watchdog ---
+
+
+def test_split_recording_failure_rearms_watchdog(monkeypatch):
+    """_arm_watchdog() must be called even if camera.split_recording() raises.
+
+    If split_recording fails (e.g. disk nearly full), the watchdog must be re-armed so
+    the clip doesn't grow indefinitely. The exception should propagate to the outer
+    handler (incrementing consecutive_errors), not kill the watchdog.
+    """
+    monkeypatch.setattr(main.config, "MAX_RECORD_SEC", 0.1)
+    monkeypatch.setattr(main, "_MAX_CONSECUTIVE_ERRORS", 5)
+
+    watchdog_arms = [0]
+    original_arm = main._arm_watchdog
+
+    def counting_arm_watchdog():
+        watchdog_arms[0] += 1
+        original_arm()
+
+    monkeypatch.setattr(main, "_arm_watchdog", counting_arm_watchdog)
+
+    # Start recording, then force the watchdog to fire and split_recording to fail
+    call_count = [0]
+    split_count = [0]
+
+    def fake_detect(frame):
+        call_count[0] += 1
+        return (call_count[0] < 20, frame)  # continuous motion
+
+    def failing_split_recording(path, on_complete=None):
+        split_count[0] += 1
+        raise OSError("disk error during split")
+
+    monkeypatch.setattr(main.motion_detector, "detect", fake_detect)
+    monkeypatch.setattr(main.motion_detector, "new_event_allowed", lambda: True)
+    monkeypatch.setattr(_mock_camera, "split_recording", failing_split_recording)
+    _mock_camera.reset_mock()
+    _mock_camera.get_frame.return_value = MagicMock()
+    _mock_camera.get_frame.side_effect = None
+
+    # Let it run until consecutive_errors reaches the limit
+    with pytest.raises(RuntimeError, match="consecutive errors"):
+        main.main()
+
+    # Watchdog should have been armed at least twice: once at recording start, once
+    # after the first failed split (in the finally block)
+    assert watchdog_arms[0] >= 2, f"watchdog re-armed only {watchdog_arms[0]} times; expected >= 2"
+    assert split_count[0] >= 1, "split_recording never called"
+
+
+# --- #149: _shutdown must call camera.close() even if _finish_clip() raises ---
+
+
+def test_shutdown_calls_camera_close_on_finish_clip_failure():
+    """camera.close() must always be called from _shutdown(), even if _finish_clip() raises."""
+    _mock_camera.reset_mock()
+    main._shutdown_called = False
+    main._currently_recording = True
+
+    def failing_finish_clip():
+        raise RuntimeError("camera driver fault during stop_recording")
+
+    with patch.object(main, "_finish_clip", failing_finish_clip):
+        with patch("sys.exit"):  # prevent actual exit during test
+            # _finish_clip() raises, but camera.close() in the finally block must still run.
+            # The exception propagates because sys.exit is mocked, but we verify camera.close()
+            # was called by checking the mock call count.
+            try:
+                main._shutdown("test")
+            except RuntimeError:
+                pass  # Expected; _finish_clip raised and sys.exit was mocked
+
+    # camera.close() must have been called despite the exception from _finish_clip()
+    _mock_camera.close.assert_called_once()

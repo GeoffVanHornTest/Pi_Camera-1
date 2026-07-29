@@ -141,8 +141,6 @@ def main():
             motion, _ = motion_detector.detect(frame)
             now = time.time()
 
-            consecutive_errors = 0
-
             if motion:
                 motion_last_seen = now
 
@@ -200,10 +198,14 @@ def main():
                     else:
                         filepath = storage.get_video_path()
                         event_log.log("SPLIT", f"Clip split → {filepath}")
-                        camera.split_recording(filepath, on_complete=_upload_and_notify)
-                        motion_detector.reset_motion_state()
-                        motion_last_seen = now
-                        _arm_watchdog()
+                        try:
+                            camera.split_recording(filepath, on_complete=_upload_and_notify)
+                            motion_detector.reset_motion_state()
+                            motion_last_seen = now
+                        finally:
+                            # Always re-arm watchdog so the clip doesn't grow without bound
+                            # if split_recording() fails and the exception is caught by outer handler.
+                            _arm_watchdog()
 
                 elif time_since_motion >= config.POST_MOTION_BUFFER_SEC:
                     event_log.log("STOP", "Recording stopped")
@@ -211,6 +213,8 @@ def main():
                     currently_recording = False
                     _currently_recording = False  # clear before _finish_clip so _shutdown()
                     _finish_clip()               # does not see a concurrent recording
+
+            consecutive_errors = 0
 
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -258,14 +262,19 @@ def _shutdown(reason: str = "requested") -> None:
 
     print("\nStopping PI Camera...")
     event_log.log("SHUTDOWN", reason)
-    if _currently_recording:
-        print("Recording in progress — finalising clip before exit...")
-        _finish_clip()
-    else:
-        _cancel_watchdog()
-    camera.close()
-    print("Camera released. Goodbye.")
-    sys.exit(0)
+    try:
+        if _currently_recording:
+            print("Recording in progress — finalising clip before exit...")
+            _finish_clip()
+        else:
+            _cancel_watchdog()
+    finally:
+        # Ensure camera is always released even if _finish_clip() or _cancel_watchdog() raises.
+        # This prevents the picamera2 device lock from persisting if a camera driver fault
+        # occurs during shutdown (#149).
+        camera.close()
+        print("Camera released. Goodbye.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
